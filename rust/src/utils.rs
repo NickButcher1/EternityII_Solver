@@ -1,15 +1,33 @@
 use crate::board_order::BOARD_ORDER;
 use crate::pieces::PIECES;
-use crate::structs::{Piece, RotatedPiece, RotatedPieceWithLeftBottom, SearchIndex};
+use crate::structs::{
+    Piece, RotatedPiece, RotatedPieceId, RotatedPieceWithLeftBottom, SearchIndex,
+};
 use directories::UserDirs;
 use md5::Digest;
+use once_cell::sync::Lazy;
 use rand::Rng;
+use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use string_builder::Builder;
 use uuid::Uuid;
+
+pub const NULL_ROTATED_PIECE: RotatedPiece = RotatedPiece {
+    piece_number: 0,
+    rotations: 0,
+    top: 0,
+    right: 0,
+    break_count: 0,
+    heuristic_side_count: 0,
+};
+
+pub static mut ROTATED_PIECES: [RotatedPiece; 2029] = [NULL_ROTATED_PIECE; 2029];
+static mut NEXT_PIECE_ID: usize = 0;
+
+static mut ROTATED_PIECES_CACHE: Lazy<HashMap<RotatedPiece, usize>> = Lazy::new(|| HashMap::new());
 
 const SIDE_EDGES: [u8; 5] = [1, 5, 9, 13, 17];
 const HEURISTIC_SIDES: [u8; 3] = [13, 16, 10]; // There is a lot of overlap between these sides
@@ -61,11 +79,19 @@ fn add_rotated_piece(
             break_count: rotations_breaks,
             heuristic_side_count,
         };
-        rotated_pieces.push(RotatedPieceWithLeftBottom {
-            left_bottom: calculate_two_sides(left, bottom),
-            score: score - 100_000 * rotations_breaks as isize,
-            rotated_piece,
-        });
+        unsafe {
+            if !ROTATED_PIECES_CACHE.contains_key(&rotated_piece) {
+                NEXT_PIECE_ID += 1;
+                ROTATED_PIECES_CACHE.insert(rotated_piece, NEXT_PIECE_ID);
+                ROTATED_PIECES[NEXT_PIECE_ID] = rotated_piece;
+            }
+            rotated_pieces.push(RotatedPieceWithLeftBottom {
+                left_bottom: calculate_two_sides(left, bottom),
+                score: score - 100_000 * rotations_breaks as isize,
+                rotated_piece_id: NEXT_PIECE_ID,
+                // rotated_piece,
+            });
+        }
     }
 }
 
@@ -158,7 +184,7 @@ pub fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPiece
     rotated_pieces
 }
 
-pub fn save_board(board: &[&RotatedPiece; 256], max_solve_index: usize) {
+pub unsafe fn save_board(board: &[RotatedPieceId; 256], max_solve_index: usize) {
     let mut entire_board = Builder::default();
     let mut url = Builder::default();
 
@@ -166,24 +192,24 @@ pub fn save_board(board: &[&RotatedPiece; 256], max_solve_index: usize) {
         let mut row = Builder::default();
 
         for j in 0..=15 {
-            if board[i * 16 + j].piece_number > 0 {
+            if ROTATED_PIECES[board[i * 16 + j]].piece_number > 0 {
                 row.append(format!(
                     "{: >3}/{} ",
-                    board[i * 16 + j].piece_number,
-                    board[i * 16 + j].rotations
+                    ROTATED_PIECES[board[i * 16 + j]].piece_number,
+                    ROTATED_PIECES[board[i * 16 + j]].rotations
                 ));
 
                 let mut found_piece: Option<Piece> = None;
 
                 for piece in PIECES {
-                    if piece.piece_number == board[i * 16 + j].piece_number {
+                    if piece.piece_number == ROTATED_PIECES[board[i * 16 + j]].piece_number {
                         found_piece = Some(piece);
                         break;
                     }
                 }
                 let p = found_piece.unwrap();
 
-                match board[i * 16 + j].rotations {
+                match ROTATED_PIECES[board[i * 16 + j]].rotations {
                     0 => {
                         url.append(letter_from(p.top));
                         url.append(letter_from(p.right));
