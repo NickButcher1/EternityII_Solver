@@ -20,7 +20,7 @@ pub struct RotatedPiece {
 
 pub type RotatedPieceId = usize;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RotatedPieceWithLeftBottom {
     pub left_bottom: u16,
     pub score: isize,
