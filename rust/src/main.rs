@@ -6,7 +6,6 @@ use crate::utils::{
     first_break_index, get_board_order, get_break_array, get_rotated_pieces, reset_caches,
     save_board, ROTATED_PIECES,
 };
-use itertools::Itertools;
 use rand::Rng;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -48,24 +47,6 @@ fn main() {
             let data = prepare_pieces_and_heuristics();
             let data2 = prepare_master_piece_lookup(&data, &empty_vec);
             println!("Solving with {num_virtual_cores} cores...");
-
-            println!("MASTER PIECE_LOOKUP");
-            for row in 1..16 {
-                for col in 0..16 {
-                    println!("{row},{col}    {:?}", data2.master_piece_lookup[row * 16 + col]);
-                    for left in 0..=22 {
-                        for bottom in 0..=22 {
-                            let x = data2.master_piece_lookup[row * 16 + col];
-                            if x.len() != 0 {
-                                let y = &x[left * 23 + bottom];
-                                if y.len() != 0 {
-                                    println!("    {left},{bottom}    {}  {y:?}", y.len());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
 
             let index_counts: Arc<Mutex<HashMap<u32, u64>>> = Arc::new(Mutex::new(HashMap::new()));
 
@@ -178,7 +159,6 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
 
     loop {
         node_count += 1;
-        println!("node {node_count}  {solve_index}");
 
         // Uncomment to get this info printed.
         // solve_index_counts[solve_index] = solve_index_counts[solve_index] + 1;
@@ -229,7 +209,10 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
             &data.corners[ROTATED_PIECES[board[row * 16 + (col - 1)]].right as usize * 23]
         };
 
-        println!("node {node_count}  si {solve_index}  {row},{col}  pclen {}", piece_candidates.len());
+        println!(
+            "node {node_count}  si {solve_index}  {row},{col}  pclen {}",
+            piece_candidates.len()
+        );
 
         let mut found_piece = false;
 
@@ -333,18 +316,13 @@ unsafe fn prepare_pieces_and_heuristics() -> Data {
         .iter()
         .flat_map(|piece| get_rotated_pieces(piece, true))
         .collect();
-    println!("sides_without_breaks: {}  {:?}", sides_without_breaks.len(), sides_without_breaks);
-    println!("sides_with_breaks: {}  {:?}", sides_with_breaks.len(), sides_with_breaks);
 
     let bottom_side_pieces_rotated = build_rotated_array(&sides_without_breaks, |piece| unsafe {
         ROTATED_PIECES[piece.rotated_piece_id].rotations == 0
     });
-    let left_side_pieces_rotated = temp_build_rotated_array(&sides_without_breaks, |piece| unsafe {
-        println!("    rpid: {}  rotations: {}", piece.rotated_piece_id, ROTATED_PIECES[piece.rotated_piece_id].rotations);
+    let left_side_pieces_rotated = build_rotated_array(&sides_without_breaks, |piece| unsafe {
         ROTATED_PIECES[piece.rotated_piece_id].rotations == 1
     });
-    // BUG HERE: only 5 entries in left_side_pieces_rotated.
-    println!("left_side_pieces_rotated = {}  {:?}", left_side_pieces_rotated.len(), left_side_pieces_rotated);
     let right_side_pieces_with_breaks_rotated =
         build_rotated_array(&sides_with_breaks, |piece| unsafe {
             ROTATED_PIECES[piece.rotated_piece_id].rotations == 3
@@ -379,11 +357,7 @@ unsafe fn prepare_pieces_and_heuristics() -> Data {
     );
 
     let corners = build_array(&corner_pieces_rotated);
-    // println!("left_side_pieces_rotated = {}  {:?}", left_side_pieces_rotated.len(), left_side_pieces_rotated);
-    println!("sides_without_breaks: {}  {:?}", sides_without_breaks.len(), sides_without_breaks);
-    println!("sides_with_breaks: {}  {:?}", sides_with_breaks.len(), sides_with_breaks);
     let left_sides = build_array(&left_side_pieces_rotated);
-    println!("left_sides = {}  {:?}", left_sides.len(), left_sides);
     let top_sides = build_array(&top_side_pieces_rotated);
     let right_sides_with_breaks = build_array(&right_side_pieces_with_breaks_rotated);
     let right_sides_without_breaks = build_array(&right_side_pieces_without_breaks_rotated);
@@ -438,8 +412,6 @@ fn prepare_master_piece_lookup<'a>(
     data: &'a Data,
     empty_vec: &'a Vec<Vec<RotatedPieceId>>,
 ) -> Data2<'a> {
-    println!("PREPARE MPL");
-    println!("    left_sides: {}  {:?}", data.left_sides.len(), data.left_sides);
     let mut master_piece_lookup: [&Vec<Vec<RotatedPieceId>>; 256] = [empty_vec; 256];
 
     for i in 0..256 {
@@ -522,32 +494,19 @@ fn build_array(input: &HashMap<u16, Vec<RotatedPieceWithLeftBottom>>) -> Vec<Vec
     output
 }
 
-fn temp_build_rotated_array(
-    input: &Vec<RotatedPieceWithLeftBottom>,
-    f: fn(&RotatedPieceWithLeftBottom) -> bool,
-) -> HashMap<u16, Vec<RotatedPieceWithLeftBottom>> {
-    input
-        .clone()
-        .into_iter()
-        .filter(f)
-        .group_by(|piece| piece.left_bottom)
-        .into_iter()
-        .map(|(key, group)| (key, group.collect()))
-        .collect()
-}
-
 fn build_rotated_array(
     input: &Vec<RotatedPieceWithLeftBottom>,
-    f: fn(&RotatedPieceWithLeftBottom) -> bool,
+    f: fn(&&RotatedPieceWithLeftBottom) -> bool,
 ) -> HashMap<u16, Vec<RotatedPieceWithLeftBottom>> {
-    input
-        .clone()
-        .into_iter()
-        .filter(f)
-        .group_by(|piece| piece.left_bottom)
-        .into_iter()
-        .map(|(key, group)| (key, group.collect()))
-        .collect()
+    let mut groups: HashMap<u16, Vec<RotatedPieceWithLeftBottom>> = HashMap::new();
+
+    for piece in input.into_iter().filter(f) {
+        groups
+            .entry(piece.left_bottom)
+            .or_insert_with(Vec::new)
+            .push(piece.clone());
+    }
+    groups
 }
 
 fn build_rotated_array2(
@@ -555,12 +514,17 @@ fn build_rotated_array2(
     f: fn(&RotatedPieceWithLeftBottom) -> bool,
     allow_breaks: bool,
 ) -> HashMap<u16, Vec<RotatedPieceWithLeftBottom>> {
-    input
-        .iter()
+    let mut groups: HashMap<u16, Vec<RotatedPieceWithLeftBottom>> = HashMap::new();
+
+    for rotated_piece in input
+        .into_iter()
         .flat_map(|piece| get_rotated_pieces(piece, allow_breaks))
         .filter(f)
-        .group_by(|piece| piece.left_bottom)
-        .into_iter()
-        .map(|(key, group)| (key, group.collect()))
-        .collect()
+    {
+        groups
+            .entry(rotated_piece.left_bottom)
+            .or_insert_with(Vec::new)
+            .push(rotated_piece);
+    }
+    groups
 }
