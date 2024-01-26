@@ -15,7 +15,6 @@ string-builder = "0.2.0"
 thousands = "0.2.0"
 unreachable = "1.0.0"
 uuid = { version = "1.7.0", features = ["v4"] }
-itertools = "0.12.0"
 once_cell = { version = "1.19.0", features = [] }
 
 # Possible performance optimisations. Based on https://nnethercote.github.io/perf-book/build-configuration.html
