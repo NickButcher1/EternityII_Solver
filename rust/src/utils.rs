@@ -88,15 +88,18 @@ fn add_rotated_piece(
             heuristic_side_count,
         };
         unsafe {
-            if let Entry::Vacant(e) = ROTATED_PIECES_CACHE.entry(rotated_piece) {
+            let piece_id = if let Entry::Vacant(e) = ROTATED_PIECES_CACHE.entry(rotated_piece) {
                 NEXT_PIECE_ID += 1;
                 e.insert(NEXT_PIECE_ID);
                 ROTATED_PIECES[NEXT_PIECE_ID] = rotated_piece;
-            }
+                NEXT_PIECE_ID
+            } else {
+                *ROTATED_PIECES_CACHE.get(&rotated_piece).unwrap()
+            };
             rotated_pieces.push(RotatedPieceWithLeftBottom {
                 left_bottom: calculate_two_sides(left, bottom),
                 score: score - 100_000 * rotations_breaks as isize,
-                rotated_piece_id: NEXT_PIECE_ID,
+                rotated_piece_id: piece_id,
             });
         }
     }
