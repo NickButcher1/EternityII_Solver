@@ -3,8 +3,8 @@ use crate::structs::{
     Piece, RotatedPieceId, RotatedPieceWithLeftBottom, SearchIndex, SolverResult,
 };
 use crate::utils::{
-    first_break_index, get_board_order, get_break_array, get_rotated_pieces, save_board,
-    ROTATED_PIECES,
+    first_break_index, get_board_order, get_break_array, get_rotated_pieces, reset_caches,
+    save_board, ROTATED_PIECES,
 };
 use itertools::Itertools;
 use rand::Rng;
@@ -44,6 +44,7 @@ fn main() {
         loop {
             loop_count += 1;
 
+            reset_caches();
             let data = prepare_pieces_and_heuristics();
             let data2 = prepare_master_piece_lookup(&data, &empty_vec);
             println!("Solving with {num_virtual_cores} cores...");
@@ -167,7 +168,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
             max_solve_index = solve_index;
 
             // TODO reinstate if solve_index >= 252 {
-            if solve_index >= 36 {
+            if solve_index >= 15 {
                 save_board(&board, max_solve_index);
 
                 if solve_index >= 256 {

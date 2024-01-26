@@ -7,6 +7,7 @@ use directories::UserDirs;
 use md5::Digest;
 use once_cell::sync::Lazy;
 use rand::Rng;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -27,11 +28,17 @@ pub const NULL_ROTATED_PIECE: RotatedPiece = RotatedPiece {
 pub static mut ROTATED_PIECES: [RotatedPiece; 2029] = [NULL_ROTATED_PIECE; 2029];
 static mut NEXT_PIECE_ID: usize = 0;
 
-static mut ROTATED_PIECES_CACHE: Lazy<HashMap<RotatedPiece, usize>> = Lazy::new(|| HashMap::new());
+static mut ROTATED_PIECES_CACHE: Lazy<HashMap<RotatedPiece, usize>> = Lazy::new(HashMap::new);
 
 const SIDE_EDGES: [u8; 5] = [1, 5, 9, 13, 17];
 const HEURISTIC_SIDES: [u8; 3] = [13, 16, 10]; // There is a lot of overlap between these sides
 const BREAK_INDEXES_ALLOWED: [u8; 10] = [201, 206, 211, 216, 221, 225, 229, 233, 237, 239];
+
+pub unsafe fn reset_caches() {
+    ROTATED_PIECES = [NULL_ROTATED_PIECE; 2029];
+    NEXT_PIECE_ID = 0;
+    ROTATED_PIECES_CACHE.clear();
+}
 
 fn calculate_two_sides(side1: u8, side2: u8) -> u16 {
     side1 as u16 * 23 + side2 as u16
@@ -80,9 +87,9 @@ fn add_rotated_piece(
             heuristic_side_count,
         };
         unsafe {
-            if !ROTATED_PIECES_CACHE.contains_key(&rotated_piece) {
+            if let Entry::Vacant(e) = ROTATED_PIECES_CACHE.entry(rotated_piece) {
                 NEXT_PIECE_ID += 1;
-                ROTATED_PIECES_CACHE.insert(rotated_piece, NEXT_PIECE_ID);
+                e.insert(NEXT_PIECE_ID);
                 ROTATED_PIECES[NEXT_PIECE_ID] = rotated_piece;
             }
             rotated_pieces.push(RotatedPieceWithLeftBottom {
