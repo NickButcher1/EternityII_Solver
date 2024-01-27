@@ -273,10 +273,8 @@ pub unsafe fn save_board(board: &[RotatedPieceId; 256], max_solve_index: usize) 
         rng.gen_range(0..1_000_000)
     );
     let user_dirs = UserDirs::new().expect("Unable to find user directories");
-    let documents_dir = user_dirs
-        .document_dir()
-        .expect("Unable to find documents directory");
-    let mut folder_path = PathBuf::from(documents_dir);
+    let home_dir = user_dirs.home_dir();
+    let mut folder_path = PathBuf::from(home_dir);
     folder_path.push("EternitySolutionsRust");
     fs::create_dir_all(&folder_path).unwrap();
     let mut file_path = folder_path;

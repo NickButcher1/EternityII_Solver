@@ -166,7 +166,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
         if solve_index > max_solve_index {
             max_solve_index = solve_index;
 
-            if solve_index >= 16 {
+            if solve_index >= 240 {
                 save_board(&board, max_solve_index);
 
                 if solve_index >= 256 {
@@ -178,7 +178,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
             }
         }
 
-        if node_count > 50_000_000 {
+        if node_count > 5_000_000_000 {
             return SolverResult {
                 solve_indexes: solve_index_counts,
                 max_depth: max_solve_index,
