@@ -75,7 +75,7 @@ fn main() {
 
                 println!(
                     "Core {core}: finish loop {loop_count}, repeat {repeat} in {} seconds",
-                    stopwatch.elapsed().as_secs()
+                    stopwatch.elapsed().as_secs().separate_with_commas()
                 );
             }
         });
@@ -94,8 +94,9 @@ fn main() {
         let elapsed_time_seconds = overall_stopwatch.elapsed().as_secs();
         let rate = total_index_count / elapsed_time_seconds;
         println!(
-            "Total {} nodes in {elapsed_time_seconds} seconds, {} per second, max depth {}",
+            "Total {} nodes in {} seconds, {} per second, max depth {}",
             total_index_count.separate_with_commas(),
+            elapsed_time_seconds.separate_with_commas(),
             rate.separate_with_commas(),
             *max_depth.lock().unwrap()
         );
