@@ -3,6 +3,8 @@ use crate::structs::{Piece, RotatedPiece, RotatedPieceWithLeftBottom, SearchInde
 use crate::utils::{
     first_break_index, get_board_order, get_break_array, get_rotated_pieces, save_board,
 };
+use env_logger::{Builder, Env};
+use log::info;
 use rand::Rng;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -26,8 +28,12 @@ fn get_num_cores() -> usize {
 }
 
 fn main() {
+    let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
+    builder.target(env_logger::Target::Stdout);
+    builder.init();
+
     let num_virtual_cores = get_num_cores();
-    println!("Using {num_virtual_cores} cores");
+    info!("Using {num_virtual_cores} cores");
     let overall_stopwatch = Instant::now();
 
     let max_depth = Arc::new(Mutex::new(0));
@@ -41,7 +47,7 @@ fn main() {
 
         let data = prepare_pieces_and_heuristics();
         let data2 = prepare_master_piece_lookup(&data, &empty_vec);
-        println!("Solving with {num_virtual_cores} cores...");
+        info!("Solving with {num_virtual_cores} cores...");
 
         let index_counts: Arc<Mutex<HashMap<u32, u64>>> = Arc::new(Mutex::new(HashMap::new()));
 
@@ -51,7 +57,7 @@ fn main() {
             let index_counts = Arc::clone(&index_counts);
 
             for repeat in 1..=5 {
-                println!("Core {core}: start loop {loop_count}, repeat {repeat}");
+                info!("Core {core}: start loop {loop_count}, repeat {repeat}");
                 let stopwatch = Instant::now();
                 let solver_result = solve_puzzle(&data, &data2);
 
@@ -73,13 +79,13 @@ fn main() {
                     }
                 }
 
-                println!(
+                info!(
                     "Core {core}: finish loop {loop_count}, repeat {repeat} in {} seconds",
                     stopwatch.elapsed().as_secs().separate_with_commas()
                 );
             }
         });
-        println!("Result"); // No equivalent to C# Parallel.For result.
+        info!("Result"); // No equivalent to C# Parallel.For result.
 
         // This will only print valid numbers if you let the solver count how far you are.
         let index_counts_clone = index_counts.clone();
@@ -93,7 +99,7 @@ fn main() {
 
         let elapsed_time_seconds = overall_stopwatch.elapsed().as_secs();
         let rate = total_index_count / elapsed_time_seconds;
-        println!(
+        info!(
             "Total {} nodes in {} seconds, {} per second, max depth {}",
             total_index_count.separate_with_commas(),
             elapsed_time_seconds.separate_with_commas(),

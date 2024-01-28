@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 directories = "5.0.1"
+env_logger = "0.11.1"
 md5 = "0.7.0"
 num_cpus = "1.16.0"
 rand = "0.8.5"
@@ -15,6 +16,7 @@ string-builder = "0.2.0"
 thousands = "0.2.0"
 unreachable = "1.0.0"
 uuid = { version = "1.7.0", features = ["v4"] }
+log = "0.4.20"
 
 # Possible performance optimisations. Based on https://nnethercote.github.io/perf-book/build-configuration.html
 [profile.release]
