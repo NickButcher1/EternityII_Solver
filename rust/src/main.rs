@@ -176,6 +176,7 @@ fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
                 save_board(&board, max_solve_index);
 
                 if solve_index >= 256 {
+                    info!("Found a 256");
                     return SolverResult {
                         solve_indexes: solve_index_counts,
                         max_depth: max_solve_index,
