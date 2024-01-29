@@ -35,7 +35,6 @@ fn main() {
     builder.init();
 
     let num_virtual_cores = get_num_cores();
-    info!("Using {num_virtual_cores} cores");
     let overall_stopwatch = Instant::now();
 
     let max_depth = Arc::new(Mutex::new(0));
@@ -59,7 +58,7 @@ fn main() {
             let index_counts = Arc::clone(&index_counts);
 
             for repeat in 1..=5 {
-                info!("Core {core}: start loop {loop_count}, repeat {repeat}");
+                info!("Core {core:02}: start loop {loop_count}, repeat {repeat}");
                 let stopwatch = Instant::now();
                 let solver_result = solve_puzzle(&data, &data2);
 
@@ -82,7 +81,8 @@ fn main() {
                 }
 
                 info!(
-                    "Core {core}: finish loop {loop_count}, repeat {repeat} in {} seconds",
+                    "Core {core:02}: finish loop {loop_count}, repeat {repeat}, best depth {} in {} seconds",
+                    solver_result.max_depth,
                     stopwatch.elapsed().as_secs().separate_with_commas()
                 );
             }
