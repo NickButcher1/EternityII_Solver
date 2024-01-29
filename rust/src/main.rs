@@ -1,3 +1,4 @@
+use crate::config::{MAX_NODE_COUNT, MIN_SOLVE_INDEX_TO_SAVE};
 use crate::pieces::PIECES;
 use crate::structs::{
     Piece, RotatedPieceId, RotatedPieceWithLeftBottom, SearchIndex, SolverResult,
@@ -17,6 +18,7 @@ use std::time::Instant;
 use thousands::Separable;
 
 mod board_order;
+mod config;
 mod pieces;
 mod structs;
 mod utils;
@@ -127,7 +129,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
 
     let mut bottom_sides: Vec<Vec<RotatedPieceId>> = vec![vec![]; 529];
 
-    for (key, value) in data.bottom_side_pieces_rotated.iter() {
+    for (key, value) in &data.bottom_side_pieces_rotated {
         let mut sorted_pieces = value.clone();
         sorted_pieces.sort_by(|a, b| unsafe {
             let score_a = (if ROTATED_PIECES[a.rotated_piece_id].heuristic_side_count > 0 {
@@ -172,7 +174,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
         if solve_index > max_solve_index {
             max_solve_index = solve_index;
 
-            if solve_index >= 252 {
+            if solve_index >= MIN_SOLVE_INDEX_TO_SAVE {
                 save_board(&board, max_solve_index);
 
                 if solve_index >= 256 {
@@ -185,7 +187,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
             }
         }
 
-        if node_count > 50_000_000_000 {
+        if node_count > MAX_NODE_COUNT {
             return SolverResult {
                 solve_indexes: solve_index_counts,
                 max_depth: max_solve_index,
