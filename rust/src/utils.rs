@@ -1,4 +1,5 @@
 use crate::board_order::BOARD_ORDER;
+use crate::config::{BREAK_INDEXES_ALLOWED, HEURISTIC_SIDES};
 use crate::pieces::PIECES;
 use crate::structs::{Piece, RotatedPiece, RotatedPieceWithLeftBottom, SearchIndex};
 use directories::UserDirs;
@@ -12,8 +13,6 @@ use string_builder::Builder;
 use uuid::Uuid;
 
 const SIDE_EDGES: [u8; 5] = [1, 5, 9, 13, 17];
-const HEURISTIC_SIDES: [u8; 3] = [13, 16, 10]; // There is a lot of overlap between these sides
-const BREAK_INDEXES_ALLOWED: [u8; 10] = [201, 206, 211, 216, 221, 225, 229, 233, 237, 239];
 
 fn calculate_two_sides(side1: u8, side2: u8) -> u16 {
     side1 as u16 * 23 + side2 as u16
@@ -74,7 +73,7 @@ pub fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPiece
     let mut score: isize = 0;
     let mut heuristic_side_count: u8 = 0;
 
-    HEURISTIC_SIDES.iter().for_each(|side| {
+    for side in HEURISTIC_SIDES.iter() {
         if piece.left == *side {
             score += 100;
             heuristic_side_count += 1;
@@ -91,7 +90,7 @@ pub fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPiece
             score += 100;
             heuristic_side_count += 1;
         }
-    });
+    }
 
     let mut rotated_pieces: Vec<RotatedPieceWithLeftBottom> = vec![];
 
@@ -218,7 +217,7 @@ pub fn save_board(board: &[&RotatedPiece; 256], max_solve_index: usize) {
         }
 
         row.append("\n");
-        entire_board.append(row.string().unwrap())
+        entire_board.append(row.string().unwrap());
     }
 
     entire_board.append("\n");
