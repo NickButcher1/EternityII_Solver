@@ -17,6 +17,8 @@ use std::path::PathBuf;
 use string_builder::Builder;
 use uuid::Uuid;
 
+pub const NUM_COLOUR_PAIRS: usize = 529;
+
 pub const NULL_ROTATED_PIECE: RotatedPiece = RotatedPiece {
     piece_number: 0,
     rotations: 0,

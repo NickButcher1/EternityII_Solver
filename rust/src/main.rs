@@ -3,10 +3,7 @@ use crate::pieces::PIECES;
 use crate::structs::{
     Piece, RotatedPieceId, RotatedPieceWithLeftBottom, SearchIndex, SolverResult,
 };
-use crate::utils::{
-    first_break_index, get_board_order, get_break_array, get_rotated_pieces, reset_caches,
-    save_board, ROTATED_PIECES,
-};
+use crate::utils::{first_break_index, get_board_order, get_break_array, get_rotated_pieces, reset_caches, save_board, ROTATED_PIECES, NUM_COLOUR_PAIRS};
 use env_logger::{Builder, Env};
 use log::info;
 use rand::Rng;
@@ -44,7 +41,7 @@ fn main() {
     let mut total_index_count: u64 = 0;
     let mut loop_count: u64 = 0;
 
-    let empty_vec: Vec<Vec<RotatedPieceId>> = vec![vec![]];
+    let empty_vec: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS] = std::array::from_fn(|_| vec![]);
 
     unsafe {
         loop {
@@ -126,7 +123,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
 
     let mut rng = rand::thread_rng();
 
-    let mut bottom_sides: Vec<Vec<RotatedPieceId>> = vec![vec![]; 529];
+    let mut bottom_sides: Vec<Vec<RotatedPieceId>> = vec![vec![]; NUM_COLOUR_PAIRS];
 
     for (key, value) in &data.bottom_side_pieces_rotated {
         let mut sorted_pieces = value.clone();
@@ -168,7 +165,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
         node_count += 1;
 
         // Uncomment to get this info printed.
-        // solve_index_counts[solve_index] += 1;
+        solve_index_counts[solve_index] += 1;
 
         if solve_index > max_solve_index {
             max_solve_index = solve_index;
@@ -266,16 +263,16 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
 }
 
 struct Data {
-    corners: Vec<Vec<RotatedPieceId>>,
-    left_sides: Vec<Vec<RotatedPieceId>>,
-    right_sides_with_breaks: Vec<Vec<RotatedPieceId>>,
-    right_sides_without_breaks: Vec<Vec<RotatedPieceId>>,
-    top_sides: Vec<Vec<RotatedPieceId>>,
-    middles_with_break: Vec<Vec<RotatedPieceId>>,
-    middles_no_break: Vec<Vec<RotatedPieceId>>,
-    south_start: Vec<Vec<RotatedPieceId>>,
-    west_start: Vec<Vec<RotatedPieceId>>,
-    start: Vec<Vec<RotatedPieceId>>,
+    corners: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    left_sides: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    right_sides_with_breaks: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    right_sides_without_breaks: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    top_sides: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    middles_with_break: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    middles_no_break: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    south_start: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    west_start: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
+    start: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
     bottom_side_pieces_rotated: HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
     board_search_sequence: [SearchIndex; 256],
     break_array: [u8; 256],
@@ -283,7 +280,7 @@ struct Data {
 }
 
 struct Data2<'a> {
-    master_piece_lookup: [&'a Vec<Vec<RotatedPieceId>>; 256],
+    master_piece_lookup: [&'a [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS]; 256],
 }
 
 unsafe fn prepare_pieces_and_heuristics() -> Data {
@@ -411,9 +408,9 @@ unsafe fn prepare_pieces_and_heuristics() -> Data {
 
 fn prepare_master_piece_lookup<'a>(
     data: &'a Data,
-    empty_vec: &'a Vec<Vec<RotatedPieceId>>,
+    empty_vec: &'a [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
 ) -> Data2<'a> {
-    let mut master_piece_lookup: [&Vec<Vec<RotatedPieceId>>; 256] = [empty_vec; 256];
+    let mut master_piece_lookup: [&[Vec<RotatedPieceId>; NUM_COLOUR_PAIRS]; 256] = [&empty_vec; 256];
 
     for i in 0..256 {
         let row = data.board_search_sequence[i].row as usize;
@@ -478,9 +475,9 @@ fn prepare_master_piece_lookup<'a>(
     }
 }
 
-fn build_array(input: &HashMap<u16, Vec<RotatedPieceWithLeftBottom>>) -> Vec<Vec<RotatedPieceId>> {
+fn build_array(input: &HashMap<u16, Vec<RotatedPieceWithLeftBottom>>) -> [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS] {
     let mut rng = rand::thread_rng();
-    let mut output: Vec<Vec<RotatedPieceId>> = vec![vec![]; 529];
+    let mut output: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS] = std::array::from_fn(|_| vec![]);
 
     for (key, value) in input {
         let mut sorted_pieces = value.clone();
