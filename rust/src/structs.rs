@@ -1,4 +1,4 @@
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Piece {
     pub piece_number: u16,
     pub top: u8,
