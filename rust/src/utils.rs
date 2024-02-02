@@ -307,16 +307,16 @@ pub fn get_break_array() -> [u8; 256] {
 }
 
 pub fn get_board_order() -> [SearchIndex; 256] {
-    let null_search_index = SearchIndex { row: 0, col: 0 };
-    let mut board_search_sequence: [SearchIndex; 256] = [null_search_index; 256];
+    const NO_SEARCH_INDEX: Option<SearchIndex> = None;
+    let mut board_search_sequence: [Option<SearchIndex>; 256] = [NO_SEARCH_INDEX; 256];
     for row in 0..16 {
         for col in 0..16 {
             let piece_sequence_number = BOARD_ORDER[15 - row][col];
-            board_search_sequence[piece_sequence_number as usize] = SearchIndex {
+            board_search_sequence[piece_sequence_number as usize] = Some(SearchIndex {
                 row: row as u8,
                 col: col as u8,
-            };
+            });
         }
     }
-    board_search_sequence
+    board_search_sequence.map(|search_index| search_index.unwrap())
 }

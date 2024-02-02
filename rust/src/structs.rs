@@ -27,7 +27,6 @@ pub struct RotatedPieceWithLeftBottom {
     pub rotated_piece_id: RotatedPieceId,
 }
 
-#[derive(Clone, Copy)]
 pub struct SearchIndex {
     pub row: u8,
     pub col: u8,
