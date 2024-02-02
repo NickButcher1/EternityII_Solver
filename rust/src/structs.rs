@@ -8,7 +8,7 @@ pub struct Piece {
     pub piece_type: u8, // 2 for corners, 1 for sides, and 0 for middles
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct RotatedPiece {
     pub piece_number: u16,
     pub rotations: u8,
@@ -18,11 +18,13 @@ pub struct RotatedPiece {
     pub heuristic_side_count: u8,
 }
 
-#[derive(Clone)]
+pub type RotatedPieceId = usize;
+
+#[derive(Clone, Debug)]
 pub struct RotatedPieceWithLeftBottom {
     pub left_bottom: u16,
     pub score: isize,
-    pub rotated_piece: RotatedPiece,
+    pub rotated_piece_id: RotatedPieceId,
 }
 
 #[derive(Clone, Copy)]
