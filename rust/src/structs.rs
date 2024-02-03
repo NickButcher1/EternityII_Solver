@@ -28,6 +28,9 @@ pub struct RotatedPieceWithLeftBottom {
 }
 
 pub struct SearchIndex {
+    pub row_times_16_plus_col: usize,
+    pub row_times_16_plus_col_minus_1: usize,
+    pub row_minus_1_times_16_plus_col: usize,
     pub row: u8,
     pub col: u8,
 }

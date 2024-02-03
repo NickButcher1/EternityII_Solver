@@ -312,7 +312,20 @@ pub fn get_board_order() -> [SearchIndex; 256] {
     for row in 0..16 {
         for col in 0..16 {
             let piece_sequence_number = BOARD_ORDER[15 - row][col];
+            let row_times_16_plus_col_minus_1 = if col == 0 {
+                0 // Not used.
+            } else {
+                row * 16 + (col - 1)
+            };
+            let row_minus_1_times_16_plus_col = if row == 0 {
+                0 // Not used.
+            } else {
+                (row - 1) * 16 + col
+            };
             board_search_sequence[piece_sequence_number as usize] = Some(SearchIndex {
+                row_times_16_plus_col: row * 16 + col, // always needed
+                row_times_16_plus_col_minus_1,
+                row_minus_1_times_16_plus_col,
                 row: row as u8,
                 col: col as u8,
             });

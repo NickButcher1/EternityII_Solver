@@ -168,7 +168,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
         node_count += 1;
 
         // Uncomment to get this info printed.
-        solve_index_counts[solve_index] += 1;
+        // solve_index_counts[solve_index] += 1;
 
         if solve_index > max_solve_index {
             max_solve_index = solve_index;
@@ -195,24 +195,29 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
 
         let row = data.board_search_sequence[solve_index].row as usize;
         let col = data.board_search_sequence[solve_index].col as usize;
+        let row_times_16_plus_col = data.board_search_sequence[solve_index].row_times_16_plus_col;
 
-        if ROTATED_PIECES[board[row * 16 + col]].piece_number > 0 {
-            piece_used[ROTATED_PIECES[board[row * 16 + col]].piece_number as usize] = false;
-            board[row * 16 + col] = 0;
+        if ROTATED_PIECES[board[row_times_16_plus_col]].piece_number > 0 {
+            piece_used[ROTATED_PIECES[board[row_times_16_plus_col]].piece_number as usize] = false;
+            board[row_times_16_plus_col] = 0;
         }
 
         let piece_candidates: &Vec<RotatedPieceId> = if row != 0 {
             let left_side = if col == 0 {
                 0
             } else {
-                ROTATED_PIECES[board[row * 16 + (col - 1)]].right as usize
+                let row_times_16_plus_col_minus_1 = data.board_search_sequence[solve_index].row_times_16_plus_col_minus_1;
+                ROTATED_PIECES[board[row_times_16_plus_col_minus_1]].right as usize * 23
             };
-            let x = data2.master_piece_lookup[row * 16 + col];
-            &x[left_side * 23 + ROTATED_PIECES[board[(row - 1) * 16 + col]].top as usize]
+            let x = data2.master_piece_lookup[row_times_16_plus_col];
+            let row_minus_1_times_16_plus_col = data.board_search_sequence[solve_index].row_minus_1_times_16_plus_col;
+            &x[left_side + ROTATED_PIECES[board[row_minus_1_times_16_plus_col]].top as usize]
         } else if col < 15 {
-            &bottom_sides[ROTATED_PIECES[board[row * 16 + (col - 1)]].right as usize * 23]
+            let row_times_16_plus_col_minus_1 = data.board_search_sequence[solve_index].row_times_16_plus_col_minus_1;
+            &bottom_sides[ROTATED_PIECES[board[row_times_16_plus_col_minus_1]].right as usize * 23]
         } else {
-            &data.corners[ROTATED_PIECES[board[row * 16 + (col - 1)]].right as usize * 23]
+            let row_times_16_plus_col_minus_1 = data.board_search_sequence[solve_index].row_times_16_plus_col_minus_1;
+            &data.corners[ROTATED_PIECES[board[row_times_16_plus_col_minus_1]].right as usize * 23]
         };
 
         let mut found_piece = false;
@@ -242,7 +247,7 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
 
                     let piece_id = piece_candidates[i];
 
-                    board[row * 16 + col] = piece_id;
+                    board[row_times_16_plus_col] = piece_id;
                     piece_used[ROTATED_PIECES[piece_id].piece_number as usize] = true;
 
                     cumulative_breaks[solve_index] =
@@ -419,8 +424,9 @@ fn prepare_master_piece_lookup<'a>(
     for i in 0..256 {
         let row = data.board_search_sequence[i].row as usize;
         let col = data.board_search_sequence[i].col as usize;
+        let row_times_16_plus_col = data.board_search_sequence[i].row_times_16_plus_col;
 
-        master_piece_lookup[row * 16 + col] = match row {
+        master_piece_lookup[row_times_16_plus_col] = match row {
             15 => {
                 if col == 15 || col == 0 {
                     &data.corners
