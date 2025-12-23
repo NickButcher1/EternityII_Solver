@@ -1,256 +1,210 @@
-use crate::config::{MAX_NODE_COUNT, MIN_SOLVE_INDEX_TO_SAVE};
-use crate::pieces::PIECES;
-use crate::structs::{
-    Piece, RotatedPieceId, RotatedPieceWithLeftBottom, SearchIndex, SolverResult,
-};
-use crate::utils::{
-    first_break_index, get_board_order, get_break_array, get_rotated_pieces, reset_caches,
-    save_board, NUM_COLOUR_PAIRS, ROTATED_PIECES,
-};
-use env_logger::{Builder, Env};
-use log::info;
+use crate::structs::{RotatedPiece, RotatedPieceWithLeftBottom, SearchIndex};
 use rand::Rng;
-use rayon::prelude::*;
 use std::collections::HashMap;
 use std::env;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use thousands::Separable;
 
-mod board_order;
-mod config;
-mod pieces;
 mod structs;
-mod utils;
+mod util;
 
 const MAX_HEURISTIC_INDEX: usize = 160;
 
+struct SolverData {
+    corners: Vec<Option<Vec<RotatedPiece>>>,
+    left_sides: Vec<Option<Vec<RotatedPiece>>>,
+    right_sides_with_breaks: Vec<Option<Vec<RotatedPiece>>>,
+    right_sides_without_breaks: Vec<Option<Vec<RotatedPiece>>>,
+    top_sides: Vec<Option<Vec<RotatedPiece>>>,
+    middles_with_break: Vec<Option<Vec<RotatedPiece>>>,
+    middles_no_break: Vec<Option<Vec<RotatedPiece>>>,
+    south_start: Vec<Option<Vec<RotatedPiece>>>,
+    west_start: Vec<Option<Vec<RotatedPiece>>>,
+    start: Vec<Option<Vec<RotatedPiece>>>,
+    bottom_side_pieces_rotated: HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
+    master_piece_lookup: Vec<Option<Vec<Option<Vec<RotatedPiece>>>>>,
+    board_search_sequence: [SearchIndex; 256],
+    break_array: [u8; 256],
+    heuristic_array: Vec<i32>,
+}
+
 fn get_num_cores() -> usize {
+    // Save one core to avoid grinding the system to a halt.
     match env::var("CORES") {
-        Ok(value) => value.parse::<usize>().unwrap(),
-        Err(_e) => num_cpus::get(),
+        Ok(value) => value.parse::<usize>().unwrap() - 1,
+        Err(_e) => num_cpus::get() - 1,
     }
 }
 
 fn main() {
-    let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
-    builder.target(env_logger::Target::Stdout);
-    builder.init();
-
     let num_virtual_cores = get_num_cores();
-    let overall_stopwatch = Instant::now();
 
-    let max_depth = Arc::new(Mutex::new(0));
-    let mut total_index_count: u64 = 0;
-    let mut loop_count: u64 = 0;
+    loop {
+        // Solve for Eternity.
+        let solver_data = prepare_pieces_and_heuristics();
+        println!("Solving with {num_virtual_cores} cores...");
 
-    let empty_vec: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS] = std::array::from_fn(|_| vec![]);
+        let index_counts = Arc::new(Mutex::new(vec![0i64; 257]));
 
-    unsafe {
-        loop {
-            loop_count += 1;
+        // Create thread handles
+        let mut handles = vec![];
 
-            reset_caches();
-            let data = prepare_pieces_and_heuristics();
-            let data2 = prepare_master_piece_lookup(&data, &empty_vec);
-            info!("Solving with {num_virtual_cores} cores...");
+        for _ in 0..num_virtual_cores {
+            let index_counts_clone = Arc::clone(&index_counts);
+            let solver_data_clone = Arc::new(solver_data.clone());
 
-            let index_counts: Arc<Mutex<HashMap<u32, u64>>> = Arc::new(Mutex::new(HashMap::new()));
-
-            // This only num_virtual_cores-1 threads; we need to save one for the us.
-            (1..num_virtual_cores).into_par_iter().for_each(|core| {
-                let max_depth = Arc::clone(&max_depth);
-                let index_counts = Arc::clone(&index_counts);
-
-                for repeat in 1..=5 {
-                    info!("Core {core:02}: start loop {loop_count}, repeat {repeat}");
+            let handle = std::thread::spawn(move || {
+                for _x in 0..5 {
                     let stopwatch = Instant::now();
-                    let solver_result = solve_puzzle(&data, &data2);
+                    let solve_indexes = solve_puzzle(&solver_data_clone);
 
-                    let mut index_counts = index_counts.lock().unwrap();
-                    for j in 0..=256 {
-                        let count = solver_result.solve_indexes[j];
-                        (*index_counts)
-                            .entry(j as u32)
-                            .and_modify(|e| *e += count)
-                            .or_insert(count);
+                    let mut counts = index_counts_clone.lock().unwrap();
+                    for j in 0..257 {
+                        counts[j] += solve_indexes[j];
                     }
+                    drop(counts);
 
-                    {
-                        let mut max_depth = max_depth.lock().unwrap();
-                        if solver_result.max_depth > *max_depth {
-                            *max_depth = solver_result.max_depth;
-                        }
-                    }
-
-                    info!(
-                        "Core {core:02}: finish loop {loop_count}, repeat {repeat}, best depth {} in {} seconds",
-                        solver_result.max_depth,
-                        stopwatch.elapsed().as_secs().separate_with_commas()
-                    );
+                    let _elapsed = stopwatch.elapsed();
                 }
             });
-            info!("Result"); // No equivalent to C# Parallel.For result.
 
-            // This will only print valid numbers if you let the solver count how far you are.
-            let index_counts_clone = index_counts.clone();
-            let index_counts_locked = index_counts_clone.lock().unwrap();
-            for i in 0..=256 {
-                if index_counts_locked[&i] != 0 {
-                    println!("{i} {}", index_counts_locked[&i].separate_with_commas());
-                }
-                total_index_count += index_counts_locked[&i];
-            }
+            handles.push(handle);
+        }
 
-            let elapsed_time_seconds = overall_stopwatch.elapsed().as_secs();
-            let rate = total_index_count / elapsed_time_seconds;
-            info!(
-                "Total {} nodes in {} seconds, {} per second, max depth {}",
-                total_index_count.separate_with_commas(),
-                elapsed_time_seconds.separate_with_commas(),
-                rate.separate_with_commas(),
-                *max_depth.lock().unwrap()
-            );
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let final_counts = index_counts.lock().unwrap();
+        for i in 0..257 {
+            println!("{} {}", i, final_counts[i]);
         }
     }
 }
 
-unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
-    let mut piece_used: [bool; 257] = [false; 257];
-    let mut cumulative_heuristic_side_count: [u8; 256] = [0; 256];
-    let mut piece_index_to_try_next: [u8; 256] = [0; 256];
-    let mut cumulative_breaks: [u8; 256] = [0; 256];
-    let mut solve_index_counts: [u64; 257] = [0; 257];
-    solve_index_counts[0] = 0; // Avoid warning when unused.
-    let mut board: [RotatedPieceId; 256] = [0; 256];
+fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
+    let mut piece_used = vec![false; 257];
+    let mut cumulative_heuristic_side_count = vec![0u8; 256];
+    let mut piece_index_to_try_next = vec![0u8; 256];
+    let mut cumulative_breaks = vec![0u8; 256];
+    let solve_index_counts = vec![0i64; 257];
+    let mut board = [RotatedPiece::default(); 256];
 
     let mut rng = rand::thread_rng();
 
-    let mut bottom_sides: Vec<Vec<RotatedPieceId>> = vec![vec![]; NUM_COLOUR_PAIRS];
-
-    for (key, value) in &data.bottom_side_pieces_rotated {
-        let mut sorted_pieces = value.clone();
-        sorted_pieces.sort_by(|a, b| unsafe {
-            let score_a = (if ROTATED_PIECES[a.rotated_piece_id].heuristic_side_count > 0 {
-                100
-            } else {
-                0
-            }) + rng.gen_range(0..99);
-            let score_b = (if ROTATED_PIECES[b.rotated_piece_id].heuristic_side_count > 0 {
-                100
-            } else {
-                0
-            }) + rng.gen_range(0..99);
-            score_b.cmp(&score_a) // Descending order.
-        });
-
-        bottom_sides[*key as usize] = sorted_pieces
-            .into_iter()
-            .map(|x| x.rotated_piece_id)
+    let mut bottom_sides: Vec<Option<Vec<RotatedPiece>>> = vec![None; 529];
+    for (key, value) in &solver_data.bottom_side_pieces_rotated {
+        let mut pieces: Vec<(RotatedPiece, i32)> = value
+            .iter()
+            .map(|x| {
+                let score = if x.rotated_piece.heuristic_side_count > 0 {
+                    100
+                } else {
+                    0
+                } + rng.gen_range(0..99);
+                (x.rotated_piece, score)
+            })
             .collect();
+        pieces.sort_by(|a, b| b.1.cmp(&a.1));
+        bottom_sides[*key as usize] = Some(pieces.into_iter().map(|(p, _)| p).collect());
     }
 
-    if let Some(first_corner) = data.corners.first() {
-        if let Some(piece_id) = first_corner.iter().min_by_key(|_| rng.gen_range(1..1000)) {
-            board[0] = *piece_id;
-        }
+    // Get first corner piece
+    if let Some(ref corner_list) = solver_data.corners[0] {
+        let idx = rng.gen_range(0..corner_list.len());
+        board[0] = corner_list[idx];
     }
 
-    piece_used[ROTATED_PIECES[board[0]].piece_number as usize] = true;
+    piece_used[board[0].piece_number as usize] = true;
     cumulative_breaks[0] = 0;
-    cumulative_heuristic_side_count[0] = ROTATED_PIECES[board[0]].heuristic_side_count;
+    cumulative_heuristic_side_count[0] = board[0].heuristic_side_count;
 
-    let mut solve_index: usize = 1; // This goes from 0....255; we've solved #0 already, so start at #1.
-    let mut max_solve_index: usize = solve_index;
-    let mut node_count: u64 = 0;
+    let mut solve_index: usize = 1;
+    let mut max_solve_index = solve_index;
+    let mut node_count: i64 = 0;
 
     loop {
         node_count += 1;
 
-        // Uncomment to get this info printed.
-        solve_index_counts[solve_index] += 1;
-
         if solve_index > max_solve_index {
             max_solve_index = solve_index;
-
-            if solve_index >= MIN_SOLVE_INDEX_TO_SAVE {
-                save_board(&board, max_solve_index);
-
+            // NICKB Was 252
+            if solve_index >= 249 {
+                let board_to_save = board;
+                util::save_board(&board_to_save, solve_index as u16);
                 if solve_index >= 256 {
-                    info!("Found a 256");
-                    return SolverResult {
-                        solve_indexes: solve_index_counts,
-                        max_depth: max_solve_index,
-                    };
+                    return solve_index_counts;
                 }
             }
         }
 
-        if node_count > MAX_NODE_COUNT {
-            return SolverResult {
-                solve_indexes: solve_index_counts,
-                max_depth: max_solve_index,
-            };
+        if node_count > 50_000_000_000 {
+            return solve_index_counts;
         }
 
-        let row = data.board_search_sequence[solve_index].row as usize;
-        let col = data.board_search_sequence[solve_index].col as usize;
+        let row = solver_data.board_search_sequence[solve_index].row as usize;
+        let col = solver_data.board_search_sequence[solve_index].column as usize;
 
-        if ROTATED_PIECES[board[row * 16 + col]].piece_number > 0 {
-            piece_used[ROTATED_PIECES[board[row * 16 + col]].piece_number as usize] = false;
-            board[row * 16 + col] = 0;
+        if board[row * 16 + col].piece_number > 0 {
+            piece_used[board[row * 16 + col].piece_number as usize] = false;
+            board[row * 16 + col].piece_number = 0;
         }
 
-        let piece_candidates: &Vec<RotatedPieceId> = if row != 0 {
+        let piece_candidates: Option<&Vec<RotatedPiece>> = if row == 0 {
+            if col < 15 {
+                let key = (board[row * 16 + (col - 1)].right_side as usize) * 23;
+                bottom_sides[key].as_ref()
+            } else {
+                let key = (board[row * 16 + (col - 1)].right_side as usize) * 23;
+                solver_data.corners[key].as_ref()
+            }
+        } else {
             let left_side = if col == 0 {
                 0
             } else {
-                ROTATED_PIECES[board[row * 16 + (col - 1)]].right as usize
+                board[row * 16 + (col - 1)].right_side
             };
-            let x = data2.master_piece_lookup[row * 16 + col];
-            &x[left_side * 23 + ROTATED_PIECES[board[(row - 1) * 16 + col]].top as usize]
-        } else if col < 15 {
-            &bottom_sides[ROTATED_PIECES[board[row * 16 + (col - 1)]].right as usize * 23]
-        } else {
-            &data.corners[ROTATED_PIECES[board[row * 16 + (col - 1)]].right as usize * 23]
+            let key = (left_side as usize) * 23 + (board[(row - 1) * 16 + col].top_side as usize);
+
+            if let Some(ref lookup) = solver_data.master_piece_lookup[row * 16 + col] {
+                lookup[key].as_ref()
+            } else {
+                None
+            }
         };
 
         let mut found_piece = false;
 
-        if !piece_candidates.is_empty() {
+        if let Some(candidates) = piece_candidates {
             let breaks_this_turn =
-                data.break_array[solve_index] - cumulative_breaks[solve_index - 1];
+                solver_data.break_array[solve_index] - cumulative_breaks[solve_index - 1];
             let try_index = piece_index_to_try_next[solve_index] as usize;
+            let piece_candidate_length = candidates.len();
 
-            let piece_candidate_length = piece_candidates.len();
             for i in try_index..piece_candidate_length {
-                if ROTATED_PIECES[piece_candidates[i]].break_count > breaks_this_turn {
+                if candidates[i].break_count > breaks_this_turn {
                     break;
                 }
 
-                if !piece_used[ROTATED_PIECES[piece_candidates[i]].piece_number as usize] {
+                if !piece_used[candidates[i].piece_number as usize] {
                     if solve_index <= MAX_HEURISTIC_INDEX
-                        && u32::from(
-                            cumulative_heuristic_side_count[solve_index - 1]
-                                + ROTATED_PIECES[piece_candidates[i]].heuristic_side_count,
-                        ) < data.heuristic_array[solve_index]
+                        && ((cumulative_heuristic_side_count[solve_index - 1]
+                            + candidates[i].heuristic_side_count)
+                            < solver_data.heuristic_array[solve_index] as u8)
                     {
                         break;
                     }
 
                     found_piece = true;
-
-                    let piece_id = piece_candidates[i];
-
-                    board[row * 16 + col] = piece_id;
-                    piece_used[ROTATED_PIECES[piece_id].piece_number as usize] = true;
-
+                    let piece = candidates[i];
+                    board[row * 16 + col] = piece;
+                    piece_used[piece.piece_number as usize] = true;
                     cumulative_breaks[solve_index] =
-                        cumulative_breaks[solve_index - 1] + ROTATED_PIECES[piece_id].break_count;
+                        cumulative_breaks[solve_index - 1] + piece.break_count;
                     cumulative_heuristic_side_count[solve_index] = cumulative_heuristic_side_count
                         [solve_index - 1]
-                        + ROTATED_PIECES[piece_id].heuristic_side_count;
-
+                        + piece.heuristic_side_count;
                     piece_index_to_try_next[solve_index] = (i + 1) as u8;
                     solve_index += 1;
                     break;
@@ -265,133 +219,220 @@ unsafe fn solve_puzzle(data: &Data, data2: &Data2) -> SolverResult {
     }
 }
 
-struct Data {
-    corners: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    left_sides: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    right_sides_with_breaks: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    right_sides_without_breaks: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    top_sides: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    middles_with_break: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    middles_no_break: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    south_start: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    west_start: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    start: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-    bottom_side_pieces_rotated: HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
-    board_search_sequence: [SearchIndex; 256],
-    break_array: [u8; 256],
-    heuristic_array: [u32; 256],
-}
+fn prepare_pieces_and_heuristics() -> SolverData {
+    let board_pieces = util::get_pieces();
 
-struct Data2<'a> {
-    master_piece_lookup: [&'a [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS]; 256],
-}
+    let corner_pieces: Vec<_> = board_pieces
+        .iter()
+        .filter(|x| x.piece_type() == 2)
+        .cloned()
+        .collect();
 
-unsafe fn prepare_pieces_and_heuristics() -> Data {
-    let corner_pieces: Vec<&Piece> = PIECES
+    let side_pieces: Vec<_> = board_pieces
         .iter()
-        .filter(|piece| piece.piece_type == 2)
+        .filter(|x| x.piece_type() == 1)
+        .cloned()
         .collect();
-    let side_pieces: Vec<&Piece> = PIECES
+
+    let middle_pieces: Vec<_> = board_pieces
         .iter()
-        .filter(|piece| piece.piece_type == 1)
+        .filter(|x| x.piece_type() == 0 && x.piece_number != 139)
+        .cloned()
         .collect();
-    // Exclude start piece.
-    let middle_pieces: Vec<&Piece> = PIECES
+
+    let start_piece: Vec<_> = board_pieces
         .iter()
-        .filter(|piece| piece.piece_type == 0 && piece.piece_number != 139)
-        .collect();
-    let start_piece: Vec<&Piece> = PIECES
-        .iter()
-        .filter(|piece| piece.piece_number == 139)
+        .filter(|x| x.piece_number == 139)
+        .cloned()
         .collect();
 
     // Corners
-    let corner_pieces_rotated = build_rotated_array2(&corner_pieces, |_piece| true, false);
+    let corner_pieces_rotated = group_by_left_bottom(
+        corner_pieces
+            .iter()
+            .flat_map(|x| util::get_rotated_pieces(x, false))
+            .collect(),
+    );
 
     // Sides
-    let sides_without_breaks: Vec<RotatedPieceWithLeftBottom> = side_pieces
+    let sides_without_breaks: Vec<_> = side_pieces
         .iter()
-        .flat_map(|piece| get_rotated_pieces(piece, false))
-        .collect();
-    let sides_with_breaks: Vec<RotatedPieceWithLeftBottom> = side_pieces
-        .iter()
-        .flat_map(|piece| get_rotated_pieces(piece, true))
+        .flat_map(|x| util::get_rotated_pieces(x, false))
         .collect();
 
-    let bottom_side_pieces_rotated = build_rotated_array(&sides_without_breaks, |piece| unsafe {
-        ROTATED_PIECES[piece.rotated_piece_id].rotations == 0
-    });
-    let left_side_pieces_rotated = build_rotated_array(&sides_without_breaks, |piece| unsafe {
-        ROTATED_PIECES[piece.rotated_piece_id].rotations == 1
-    });
-    let right_side_pieces_with_breaks_rotated =
-        build_rotated_array(&sides_with_breaks, |piece| unsafe {
-            ROTATED_PIECES[piece.rotated_piece_id].rotations == 3
-        });
-    let right_side_pieces_without_breaks_rotated =
-        build_rotated_array(&sides_without_breaks, |piece| unsafe {
-            ROTATED_PIECES[piece.rotated_piece_id].rotations == 3
-        });
-    let top_side_pieces_rotated = build_rotated_array(&sides_with_breaks, |piece| unsafe {
-        ROTATED_PIECES[piece.rotated_piece_id].rotations == 2
-    });
+    let sides_with_breaks: Vec<_> = side_pieces
+        .iter()
+        .flat_map(|x| util::get_rotated_pieces(x, true))
+        .collect();
+
+    let bottom_side_pieces_rotated = group_by_left_bottom(
+        sides_without_breaks
+            .iter()
+            .filter(|x| x.rotated_piece.rotations == 0)
+            .cloned()
+            .collect(),
+    );
+
+    let left_side_pieces_rotated = group_by_left_bottom(
+        sides_without_breaks
+            .iter()
+            .filter(|x| x.rotated_piece.rotations == 1)
+            .cloned()
+            .collect(),
+    );
+
+    let right_side_pieces_with_breaks_rotated = group_by_left_bottom(
+        sides_with_breaks
+            .iter()
+            .filter(|x| x.rotated_piece.rotations == 3)
+            .cloned()
+            .collect(),
+    );
+
+    let right_side_pieces_without_breaks_rotated = group_by_left_bottom(
+        sides_without_breaks
+            .iter()
+            .filter(|x| x.rotated_piece.rotations == 3)
+            .cloned()
+            .collect(),
+    );
+
+    let top_side_pieces_rotated = group_by_left_bottom(
+        sides_with_breaks
+            .iter()
+            .filter(|x| x.rotated_piece.rotations == 2)
+            .cloned()
+            .collect(),
+    );
 
     // Middles
-    let middle_pieces_rotated_with_breaks =
-        build_rotated_array2(&middle_pieces, |_piece| true, true);
-    let middle_pieces_rotated_without_breaks =
-        build_rotated_array2(&middle_pieces, |_piece| true, false);
-    let south_start_piece_rotated = build_rotated_array2(
-        &middle_pieces,
-        |piece| ROTATED_PIECES[piece.rotated_piece_id].top == 6,
-        false,
-    );
-    let west_start_piece_rotated = build_rotated_array2(
-        &middle_pieces,
-        |piece| ROTATED_PIECES[piece.rotated_piece_id].right == 11,
-        false,
-    );
-    let start_piece_rotated = build_rotated_array2(
-        &start_piece,
-        |piece| ROTATED_PIECES[piece.rotated_piece_id].rotations == 2,
-        false,
+    let middle_pieces_rotated_with_breaks = group_by_left_bottom(
+        middle_pieces
+            .iter()
+            .flat_map(|x| util::get_rotated_pieces(x, true))
+            .collect(),
     );
 
-    let corners = build_array(&corner_pieces_rotated);
-    let left_sides = build_array(&left_side_pieces_rotated);
-    let top_sides = build_array(&top_side_pieces_rotated);
-    let right_sides_with_breaks = build_array(&right_side_pieces_with_breaks_rotated);
-    let right_sides_without_breaks = build_array(&right_side_pieces_without_breaks_rotated);
-    let middles_with_break = build_array(&middle_pieces_rotated_with_breaks);
-    let middles_no_break = build_array(&middle_pieces_rotated_without_breaks);
-    let south_start = build_array(&south_start_piece_rotated);
-    let west_start = build_array(&west_start_piece_rotated);
-    let start = build_array(&start_piece_rotated);
+    let middle_pieces_rotated_without_breaks = group_by_left_bottom(
+        middle_pieces
+            .iter()
+            .flat_map(|x| util::get_rotated_pieces(x, false))
+            .collect(),
+    );
 
-    let board_search_sequence = get_board_order();
-    let break_array = get_break_array();
+    let south_start_piece_rotated = group_by_left_bottom(
+        middle_pieces
+            .iter()
+            .flat_map(|x| util::get_rotated_pieces(x, false))
+            .filter(|x| x.rotated_piece.top_side == 6)
+            .collect(),
+    );
 
-    let mut heuristic_array: [u32; 256] = [0; 256];
+    let west_start_piece_rotated = group_by_left_bottom(
+        middle_pieces
+            .iter()
+            .flat_map(|x| util::get_rotated_pieces(x, false))
+            .filter(|x| x.rotated_piece.right_side == 11)
+            .collect(),
+    );
+
+    let start_piece_rotated = group_by_left_bottom(
+        start_piece
+            .iter()
+            .flat_map(|x| util::get_rotated_pieces(x, false))
+            .filter(|x| x.rotated_piece.rotations == 2)
+            .collect(),
+    );
+
+    let mut rng = rand::thread_rng();
+
+    let corners = create_sorted_array(&corner_pieces_rotated, &mut rng);
+    let left_sides = create_sorted_array(&left_side_pieces_rotated, &mut rng);
+    let top_sides = create_sorted_array(&top_side_pieces_rotated, &mut rng);
+    let right_sides_with_breaks =
+        create_sorted_array(&right_side_pieces_with_breaks_rotated, &mut rng);
+    let right_sides_without_breaks =
+        create_sorted_array(&right_side_pieces_without_breaks_rotated, &mut rng);
+    let middles_with_break = create_sorted_array(&middle_pieces_rotated_with_breaks, &mut rng);
+    let middles_no_break = create_sorted_array(&middle_pieces_rotated_without_breaks, &mut rng);
+    let south_start = create_sorted_array(&south_start_piece_rotated, &mut rng);
+    let west_start = create_sorted_array(&west_start_piece_rotated, &mut rng);
+    let start = create_sorted_array(&start_piece_rotated, &mut rng);
+
+    let board_search_sequence = util::get_board_order();
+    let break_array = util::get_break_array();
+
+    let mut master_piece_lookup: Vec<Option<Vec<Option<Vec<RotatedPiece>>>>> = vec![None; 256];
+
+    #[allow(clippy::needless_range_loop)]
+    for i in 0..256 {
+        let row = board_search_sequence[i].row as usize;
+        let col = board_search_sequence[i].column as usize;
+
+        let lookup = if row == 15 {
+            if col == 15 || col == 0 {
+                Some(corners.clone())
+            } else {
+                Some(top_sides.clone())
+            }
+        } else if row == 0 {
+            None
+        } else if col == 15 {
+            if i < util::first_break_index() {
+                Some(right_sides_without_breaks.clone())
+            } else {
+                Some(right_sides_with_breaks.clone())
+            }
+        } else if col == 0 {
+            Some(left_sides.clone())
+        } else if row == 7 {
+            if col == 7 {
+                Some(start.clone())
+            } else if col == 6 {
+                Some(west_start.clone())
+            } else if i < util::first_break_index() {
+                Some(middles_no_break.clone())
+            } else {
+                Some(middles_with_break.clone())
+            }
+        } else if row == 6 {
+            if col == 7 {
+                Some(south_start.clone())
+            } else if i < util::first_break_index() {
+                Some(middles_no_break.clone())
+            } else {
+                Some(middles_with_break.clone())
+            }
+        } else if i < util::first_break_index() {
+            Some(middles_no_break.clone())
+        } else {
+            Some(middles_with_break.clone())
+        };
+
+        master_piece_lookup[row * 16 + col] = lookup;
+    }
+
+    let mut heuristic_array = vec![0i32; 256];
     #[allow(clippy::needless_range_loop)]
     for i in 0..256 {
         heuristic_array[i] = if i <= 16 {
             0
         } else if i <= 26 {
-            ((i as f64 - 16.0) * 2.8f64) as u32
+            ((i as f32 - 16.0) * 2.8) as i32
         } else if i <= 56 {
-            ((i as f64 - 26.0) * 1.43333f64 + 28.0) as u32
+            (((i as f32 - 26.0) * 1.43333) + 28.0) as i32
         } else if i <= 76 {
-            ((i as f64 - 56.0) * 0.9f64 + 71.0) as u32
+            (((i as f32 - 56.0) * 0.9) + 71.0) as i32
         } else if i <= 102 {
-            ((i as f64 - 76.0) * 0.6538f64 + 89.0) as u32
+            (((i as f32 - 76.0) * 0.6538) + 89.0) as i32
         } else if i <= MAX_HEURISTIC_INDEX {
-            ((i as f64 - 102.0) / 4.4615f64 + 106.0) as u32
+            (((i as f32 - 102.0) / 4.4615) + 106.0) as i32
         } else {
             0
         };
     }
 
-    Data {
+    SolverData {
         corners,
         left_sides,
         right_sides_with_breaks,
@@ -403,132 +444,58 @@ unsafe fn prepare_pieces_and_heuristics() -> Data {
         west_start,
         start,
         bottom_side_pieces_rotated,
+        master_piece_lookup,
         board_search_sequence,
         break_array,
         heuristic_array,
     }
 }
 
-fn prepare_master_piece_lookup<'a>(
-    data: &'a Data,
-    empty_vec: &'a [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS],
-) -> Data2<'a> {
-    let mut master_piece_lookup: [&[Vec<RotatedPieceId>; NUM_COLOUR_PAIRS]; 256] =
-        [&empty_vec; 256];
+fn group_by_left_bottom(
+    pieces: Vec<RotatedPieceWithLeftBottom>,
+) -> HashMap<u16, Vec<RotatedPieceWithLeftBottom>> {
+    let mut map: HashMap<u16, Vec<RotatedPieceWithLeftBottom>> = HashMap::new();
+    for piece in pieces {
+        map.entry(piece.left_bottom).or_default().push(piece);
+    }
+    map
+}
 
-    for i in 0..256 {
-        let row = data.board_search_sequence[i].row as usize;
-        let col = data.board_search_sequence[i].col as usize;
+fn create_sorted_array(
+    map: &HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
+    rng: &mut impl Rng,
+) -> Vec<Option<Vec<RotatedPiece>>> {
+    let mut result = vec![None; 529];
+    for (key, value) in map {
+        let mut pieces: Vec<(RotatedPiece, i32)> = value
+            .iter()
+            .map(|x| (x.rotated_piece, x.score + rng.gen_range(0..99)))
+            .collect();
+        pieces.sort_by(|a, b| b.1.cmp(&a.1));
+        result[*key as usize] = Some(pieces.into_iter().map(|(p, _)| p).collect());
+    }
+    result
+}
 
-        master_piece_lookup[row * 16 + col] = match row {
-            15 => {
-                if col == 15 || col == 0 {
-                    &data.corners
-                } else {
-                    &data.top_sides
-                }
-            }
-            0 => {
-                // Don't populate the master lookup table since we randomize every time.
-                empty_vec
-            }
-            _ => match col {
-                15 => {
-                    if i < first_break_index() {
-                        &data.right_sides_without_breaks
-                    } else {
-                        &data.right_sides_with_breaks
-                    }
-                }
-                0 => &data.left_sides,
-                _ => match row {
-                    7 => match col {
-                        7 => &data.start,
-                        6 => &data.west_start,
-                        _ => {
-                            if i < first_break_index() {
-                                &data.middles_no_break
-                            } else {
-                                &data.middles_with_break
-                            }
-                        }
-                    },
-                    6 => {
-                        if col == 7 {
-                            &data.south_start
-                        } else if i < first_break_index() {
-                            &data.middles_no_break
-                        } else {
-                            &data.middles_with_break
-                        }
-                    }
-                    _ => {
-                        if i < first_break_index() {
-                            &data.middles_no_break
-                        } else {
-                            &data.middles_with_break
-                        }
-                    }
-                },
-            },
+// Note: You'll need to implement Clone for SolverData
+impl Clone for SolverData {
+    fn clone(&self) -> Self {
+        SolverData {
+            corners: self.corners.clone(),
+            left_sides: self.left_sides.clone(),
+            right_sides_with_breaks: self.right_sides_with_breaks.clone(),
+            right_sides_without_breaks: self.right_sides_without_breaks.clone(),
+            top_sides: self.top_sides.clone(),
+            middles_with_break: self.middles_with_break.clone(),
+            middles_no_break: self.middles_no_break.clone(),
+            south_start: self.south_start.clone(),
+            west_start: self.west_start.clone(),
+            start: self.start.clone(),
+            bottom_side_pieces_rotated: self.bottom_side_pieces_rotated.clone(),
+            master_piece_lookup: self.master_piece_lookup.clone(),
+            board_search_sequence: self.board_search_sequence,
+            break_array: self.break_array,
+            heuristic_array: self.heuristic_array.clone(),
         }
     }
-
-    Data2 {
-        master_piece_lookup,
-    }
-}
-
-fn build_array(
-    input: &HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
-) -> [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS] {
-    let mut rng = rand::thread_rng();
-    let mut output: [Vec<RotatedPieceId>; NUM_COLOUR_PAIRS] = std::array::from_fn(|_| vec![]);
-
-    for (key, value) in input {
-        let mut sorted_pieces = value.clone();
-        sorted_pieces.sort_by(|a, b| {
-            (b.score + rng.gen_range(0..99)).cmp(&(a.score + rng.gen_range(0..99)))
-        });
-        output[*key as usize] = sorted_pieces
-            .into_iter()
-            .map(|x| x.rotated_piece_id)
-            .collect();
-    }
-    output
-}
-
-fn build_rotated_array(
-    input: &[RotatedPieceWithLeftBottom],
-    f: fn(&&RotatedPieceWithLeftBottom) -> bool,
-) -> HashMap<u16, Vec<RotatedPieceWithLeftBottom>> {
-    let mut groups: HashMap<u16, Vec<RotatedPieceWithLeftBottom>> = HashMap::new();
-
-    for piece in input.iter().filter(f) {
-        groups
-            .entry(piece.left_bottom)
-            .or_default()
-            .push(piece.clone());
-    }
-    groups
-}
-
-fn build_rotated_array2(
-    input: &[&Piece],
-    f: fn(&RotatedPieceWithLeftBottom) -> bool,
-    allow_breaks: bool,
-) -> HashMap<u16, Vec<RotatedPieceWithLeftBottom>> {
-    let mut groups: HashMap<u16, Vec<RotatedPieceWithLeftBottom>> = HashMap::new();
-
-    for rotated_piece in input
-        .iter()
-        .flat_map(|piece| get_rotated_pieces(piece, allow_breaks))
-        .filter(f)
-    {
-        groups
-            .entry(rotated_piece.left_bottom)
-            .or_default()
-            .push(rotated_piece);
-    }
-    groups
 }

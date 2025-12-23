@@ -1,38 +1,42 @@
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Piece {
     pub piece_number: u16,
-    pub top: u8,
-    pub right: u8,
-    pub bottom: u8,
-    pub left: u8,
-    pub piece_type: u8, // 2 for corners, 1 for sides, and 0 for middles
+    pub top_side: u8,
+    pub right_side: u8,
+    pub bottom_side: u8,
+    pub left_side: u8,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+impl Piece {
+    /// Returns the type of piece: 2 for corners, 1 for sides, and 0 for middles
+    pub fn piece_type(&self) -> u8 {
+        match self.piece_number {
+            1..=4 => 2,
+            5..=60 => 1,
+            _ => 0,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct RotatedPiece {
     pub piece_number: u16,
     pub rotations: u8,
-    pub top: u8,
-    pub right: u8,
+    pub top_side: u8,
+    pub right_side: u8,
     pub break_count: u8,
     pub heuristic_side_count: u8,
 }
 
-pub type RotatedPieceId = usize;
-
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RotatedPieceWithLeftBottom {
     pub left_bottom: u16,
-    pub score: isize,
-    pub rotated_piece_id: RotatedPieceId,
+    pub score: i32,
+    pub rotated_piece: RotatedPiece,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SearchIndex {
     pub row: u8,
-    pub col: u8,
-}
-
-pub struct SolverResult {
-    pub solve_indexes: [u64; 257],
-    pub max_depth: usize,
+    pub column: u8,
 }
