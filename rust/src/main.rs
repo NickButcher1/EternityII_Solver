@@ -121,7 +121,7 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
         board[0] = corner_list[idx];
     }
 
-    piece_used[board[0].piece_number as usize] = true;
+    piece_used[board[0].reid as usize] = true;
     cumulative_breaks[0] = 0;
     cumulative_heuristic_side_count[0] = board[0].heuristic_side_count;
 
@@ -150,26 +150,26 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
         let row = solver_data.board_search_sequence[solve_index].row as usize;
         let col = solver_data.board_search_sequence[solve_index].column as usize;
 
-        if board[row * 16 + col].piece_number > 0 {
-            piece_used[board[row * 16 + col].piece_number as usize] = false;
-            board[row * 16 + col].piece_number = 0;
+        if board[row * 16 + col].reid > 0 {
+            piece_used[board[row * 16 + col].reid as usize] = false;
+            board[row * 16 + col].reid = 0;
         }
 
         let piece_candidates: Option<&Vec<RotatedPiece>> = if row == 0 {
             if col < 15 {
-                let key = (board[row * 16 + (col - 1)].right_side as usize) * 23;
+                let key = (board[row * 16 + (col - 1)].right as usize) * 23;
                 bottom_sides[key].as_ref()
             } else {
-                let key = (board[row * 16 + (col - 1)].right_side as usize) * 23;
+                let key = (board[row * 16 + (col - 1)].right as usize) * 23;
                 solver_data.corners[key].as_ref()
             }
         } else {
             let left_side = if col == 0 {
                 0
             } else {
-                board[row * 16 + (col - 1)].right_side
+                board[row * 16 + (col - 1)].right
             };
-            let key = (left_side as usize) * 23 + (board[(row - 1) * 16 + col].top_side as usize);
+            let key = (left_side as usize) * 23 + (board[(row - 1) * 16 + col].top as usize);
 
             if let Some(ref lookup) = solver_data.master_piece_lookup[row * 16 + col] {
                 lookup[key].as_ref()
@@ -187,11 +187,11 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
             let piece_candidate_length = candidates.len();
 
             for i in try_index..piece_candidate_length {
-                if candidates[i].break_count > breaks_this_turn {
+                if candidates[i].breaks > breaks_this_turn {
                     break;
                 }
 
-                if !piece_used[candidates[i].piece_number as usize] {
+                if !piece_used[candidates[i].reid as usize] {
                     if solve_index <= MAX_HEURISTIC_INDEX
                         && ((cumulative_heuristic_side_count[solve_index - 1]
                             + candidates[i].heuristic_side_count)
@@ -203,9 +203,9 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
                     found_piece = true;
                     let piece = candidates[i];
                     board[row * 16 + col] = piece;
-                    piece_used[piece.piece_number as usize] = true;
+                    piece_used[piece.reid as usize] = true;
                     cumulative_breaks[solve_index] =
-                        cumulative_breaks[solve_index - 1] + piece.break_count;
+                        cumulative_breaks[solve_index - 1] + piece.breaks;
                     cumulative_heuristic_side_count[solve_index] = cumulative_heuristic_side_count
                         [solve_index - 1]
                         + piece.heuristic_side_count;
@@ -240,13 +240,13 @@ fn prepare_pieces_and_heuristics() -> SolverData {
 
     let middle_pieces: Vec<_> = board_pieces
         .iter()
-        .filter(|x| x.piece_type() == 0 && x.piece_number != 139)
+        .filter(|x| x.piece_type() == 0 && x.reid != 139)
         .cloned()
         .collect();
 
     let start_piece: Vec<_> = board_pieces
         .iter()
-        .filter(|x| x.piece_number == 139)
+        .filter(|x| x.reid == 139)
         .cloned()
         .collect();
 
@@ -328,7 +328,7 @@ fn prepare_pieces_and_heuristics() -> SolverData {
         middle_pieces
             .iter()
             .flat_map(|x| util::get_rotated_pieces(x, false))
-            .filter(|x| x.rotated_piece.top_side == 6)
+            .filter(|x| x.rotated_piece.top == 6)
             .collect(),
     );
 
@@ -336,7 +336,7 @@ fn prepare_pieces_and_heuristics() -> SolverData {
         middle_pieces
             .iter()
             .flat_map(|x| util::get_rotated_pieces(x, false))
-            .filter(|x| x.rotated_piece.right_side == 11)
+            .filter(|x| x.rotated_piece.right == 11)
             .collect(),
     );
 

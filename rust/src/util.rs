@@ -15,19 +15,19 @@ pub fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPiece
 
     // Calculate heuristic score
     for &side in HEURISTIC_SIDES {
-        if piece.left_side == side {
+        if piece.left == side {
             score_base += 100;
             heuristic_side_count += 1;
         }
-        if piece.top_side == side {
+        if piece.top == side {
             score_base += 100;
             heuristic_side_count += 1;
         }
-        if piece.right_side == side {
+        if piece.right == side {
             score_base += 100;
             heuristic_side_count += 1;
         }
-        if piece.bottom_side == side {
+        if piece.bottom == side {
             score_base += 100;
             heuristic_side_count += 1;
         }
@@ -48,10 +48,10 @@ pub fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPiece
                 left,
                 bottom,
                 0,
-                piece.left_side,
-                piece.bottom_side,
-                piece.top_side,
-                piece.right_side,
+                piece.left,
+                piece.bottom,
+                piece.top,
+                piece.right,
                 score_base,
                 heuristic_side_count,
                 allow_breaks,
@@ -64,10 +64,10 @@ pub fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPiece
                 left,
                 bottom,
                 1,
-                piece.bottom_side,
-                piece.right_side,
-                piece.left_side,
-                piece.top_side,
+                piece.bottom,
+                piece.right,
+                piece.left,
+                piece.top,
                 score_base,
                 heuristic_side_count,
                 allow_breaks,
@@ -80,10 +80,10 @@ pub fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPiece
                 left,
                 bottom,
                 2,
-                piece.right_side,
-                piece.top_side,
-                piece.bottom_side,
-                piece.left_side,
+                piece.right,
+                piece.top,
+                piece.bottom,
+                piece.left,
                 score_base,
                 heuristic_side_count,
                 allow_breaks,
@@ -96,10 +96,10 @@ pub fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPiece
                 left,
                 bottom,
                 3,
-                piece.top_side,
-                piece.left_side,
-                piece.right_side,
-                piece.bottom_side,
+                piece.top,
+                piece.left,
+                piece.right,
+                piece.bottom,
                 score_base,
                 heuristic_side_count,
                 allow_breaks,
@@ -146,11 +146,11 @@ fn check_and_add_rotation(
             left_bottom: calculate_two_sides(target_l, target_b),
             score: score_base - (100_000 * breaks as i32),
             rotated_piece: RotatedPiece {
-                piece_number: piece.piece_number,
+                reid: piece.reid,
                 rotations: rot_idx,
-                top_side: out_top,
-                right_side: out_right,
-                break_count: breaks,
+                top: out_top,
+                right: out_right,
+                breaks,
                 heuristic_side_count: h_count,
             },
         });
@@ -166,22 +166,16 @@ pub fn save_board(board: &[RotatedPiece; 256], max_solve_index: u16) {
         let mut row_str = String::new();
         for j in 0..16 {
             let p_rotated = board[i * 16 + j];
-            if p_rotated.piece_number > 0 {
-                row_str.push_str(&format!(
-                    "{:>3}/{} ",
-                    p_rotated.piece_number, p_rotated.rotations
-                ));
+            if p_rotated.reid > 0 {
+                row_str.push_str(&format!("{:>3}/{} ", p_rotated.reid, p_rotated.rotations));
 
                 // Find original piece to get sides for URL
-                if let Some(p) = board_pieces
-                    .iter()
-                    .find(|k| k.piece_number == p_rotated.piece_number)
-                {
+                if let Some(p) = board_pieces.iter().find(|k| k.reid == p_rotated.reid) {
                     let (t, r, b, l) = match p_rotated.rotations {
-                        0 => (p.top_side, p.right_side, p.bottom_side, p.left_side),
-                        1 => (p.left_side, p.top_side, p.right_side, p.bottom_side),
-                        2 => (p.bottom_side, p.left_side, p.top_side, p.right_side),
-                        _ => (p.right_side, p.bottom_side, p.left_side, p.top_side),
+                        0 => (p.top, p.right, p.bottom, p.left),
+                        1 => (p.left, p.top, p.right, p.bottom),
+                        2 => (p.bottom, p.left, p.top, p.right),
+                        _ => (p.right, p.bottom, p.left, p.top),
                     };
                     for side in [t, r, b, l] {
                         url_path.push((side + b'a') as char);

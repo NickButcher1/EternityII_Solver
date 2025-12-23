@@ -1,16 +1,16 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Piece {
-    pub piece_number: u16,
-    pub top_side: u8,
-    pub right_side: u8,
-    pub bottom_side: u8,
-    pub left_side: u8,
+    pub reid: u16, // Real ID (1-256).
+    pub top: u8,
+    pub right: u8,
+    pub bottom: u8,
+    pub left: u8,
 }
 
 impl Piece {
     /// Returns the type of piece: 2 for corners, 1 for sides, and 0 for middles
     pub fn piece_type(&self) -> u8 {
-        match self.piece_number {
+        match self.reid {
             1..=4 => 2,
             5..=60 => 1,
             _ => 0,
@@ -20,11 +20,11 @@ impl Piece {
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct RotatedPiece {
-    pub piece_number: u16,
+    pub reid: u16,
     pub rotations: u8,
-    pub top_side: u8,
-    pub right_side: u8,
-    pub break_count: u8,
+    pub top: u8,
+    pub right: u8,
+    pub breaks: u8,
     pub heuristic_side_count: u8,
 }
 
