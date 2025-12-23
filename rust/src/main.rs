@@ -46,7 +46,8 @@ fn main() {
 
     loop {
         // Solve for Eternity.
-        let solver_data = prepare_pieces_and_heuristics();
+        let solver_data = Arc::new(prepare_pieces_and_heuristics());
+
         println!("Solving with {num_virtual_cores} cores...");
 
         let index_counts = Arc::new(Mutex::new(vec![0i64; 257]));
@@ -56,7 +57,7 @@ fn main() {
 
         for _ in 0..num_virtual_cores {
             let index_counts_clone = Arc::clone(&index_counts);
-            let solver_data_clone = Arc::new(solver_data.clone());
+            let solver_data_clone = Arc::clone(&solver_data);
 
             let handle = std::thread::spawn(move || {
                 for _x in 0..5 {
@@ -481,7 +482,6 @@ fn create_sorted_array(
     result
 }
 
-// Note: You'll need to implement Clone for SolverData
 impl Clone for SolverData {
     fn clone(&self) -> Self {
         SolverData {
