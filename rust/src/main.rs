@@ -96,7 +96,7 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
     let solve_index_counts = vec![0i64; 257];
     let mut board = [RotatedPiece::default(); 256];
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut bottom_sides: Vec<Option<Vec<RotatedPiece>>> = vec![None; 529];
     for (key, value) in &solver_data.bottom_side_pieces_rotated {
@@ -107,7 +107,7 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
                     100
                 } else {
                     0
-                } + rng.gen_range(0..99);
+                } + rng.random_range(0..99);
                 (x.rotated_piece, score)
             })
             .collect();
@@ -117,7 +117,7 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
 
     // Get first corner piece
     if let Some(ref corner_list) = solver_data.corners[0] {
-        let idx = rng.gen_range(0..corner_list.len());
+        let idx = rng.random_range(0..corner_list.len());
         board[0] = corner_list[idx];
     }
 
@@ -348,7 +348,7 @@ fn prepare_pieces_and_heuristics() -> SolverData {
             .collect(),
     );
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let corners = create_sorted_array(&corner_pieces_rotated, &mut rng);
     let left_sides = create_sorted_array(&left_side_pieces_rotated, &mut rng);
@@ -473,7 +473,7 @@ fn create_sorted_array(
     for (key, value) in map {
         let mut pieces: Vec<(RotatedPiece, i32)> = value
             .iter()
-            .map(|x| (x.rotated_piece, x.score + rng.gen_range(0..99)))
+            .map(|x| (x.rotated_piece, x.score + rng.random_range(0..99)))
             .collect();
         pieces.sort_by(|a, b| b.1.cmp(&a.1));
         result[*key as usize] = Some(pieces.into_iter().map(|(p, _)| p).collect());
