@@ -1,3 +1,5 @@
+use crate::board_order::get_board_order;
+use crate::config::{MAX_NODE_COUNT, MIN_SOLVE_INDEX_TO_SAVE};
 use crate::structs::{RotatedPiece, RotatedPieceWithLeftBottom, SearchIndex};
 use rand::Rng;
 use std::collections::HashMap;
@@ -5,6 +7,9 @@ use std::env;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+mod board_order;
+mod config;
+mod pieces;
 mod structs;
 mod util;
 
@@ -122,15 +127,14 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
 
     let mut solve_index: usize = 1;
     let mut max_solve_index = solve_index;
-    let mut node_count: i64 = 0;
+    let mut node_count: u64 = 0;
 
     loop {
         node_count += 1;
 
         if solve_index > max_solve_index {
             max_solve_index = solve_index;
-            // NICKB Was 252
-            if solve_index >= 249 {
+            if solve_index >= MIN_SOLVE_INDEX_TO_SAVE {
                 let board_to_save = board;
                 util::save_board(&board_to_save, solve_index as u16);
                 if solve_index >= 256 {
@@ -139,7 +143,7 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
             }
         }
 
-        if node_count > 50_000_000_000 {
+        if node_count > MAX_NODE_COUNT {
             return solve_index_counts;
         }
 
@@ -220,7 +224,7 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
 }
 
 fn prepare_pieces_and_heuristics() -> SolverData {
-    let board_pieces = util::get_pieces();
+    let board_pieces = pieces::PIECES;
 
     let corner_pieces: Vec<_> = board_pieces
         .iter()
@@ -359,7 +363,7 @@ fn prepare_pieces_and_heuristics() -> SolverData {
     let west_start = create_sorted_array(&west_start_piece_rotated, &mut rng);
     let start = create_sorted_array(&start_piece_rotated, &mut rng);
 
-    let board_search_sequence = util::get_board_order();
+    let board_search_sequence = get_board_order();
     let break_array = util::get_break_array();
 
     let mut master_piece_lookup: Vec<Option<Vec<Option<Vec<RotatedPiece>>>>> = vec![None; 256];
