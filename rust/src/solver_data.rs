@@ -195,6 +195,29 @@ fn get_break_array() -> [u8; 256] {
     cumulative_breaks
 }
 
+fn get_heuristic_array() -> Vec<i32> {
+    let mut heuristic_array = vec![0i32; 256];
+    #[allow(clippy::needless_range_loop)]
+    for i in 0..256 {
+        heuristic_array[i] = if i <= 16 {
+            0
+        } else if i <= 26 {
+            ((i as f32 - 16.0) * 2.8) as i32
+        } else if i <= 56 {
+            (((i as f32 - 26.0) * 1.43333) + 28.0) as i32
+        } else if i <= 76 {
+            (((i as f32 - 56.0) * 0.9) + 71.0) as i32
+        } else if i <= 102 {
+            (((i as f32 - 76.0) * 0.6538) + 89.0) as i32
+        } else if i <= MAX_HEURISTIC_INDEX {
+            (((i as f32 - 102.0) / 4.4615) + 106.0) as i32
+        } else {
+            0
+        };
+    }
+    heuristic_array
+}
+
 pub fn prepare_pieces_and_heuristics() -> SolverData {
     let board_pieces = pieces::PIECES;
 
@@ -389,25 +412,7 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
         master_piece_lookup[row * 16 + col] = lookup;
     }
 
-    let mut heuristic_array = vec![0i32; 256];
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..256 {
-        heuristic_array[i] = if i <= 16 {
-            0
-        } else if i <= 26 {
-            ((i as f32 - 16.0) * 2.8) as i32
-        } else if i <= 56 {
-            (((i as f32 - 26.0) * 1.43333) + 28.0) as i32
-        } else if i <= 76 {
-            (((i as f32 - 56.0) * 0.9) + 71.0) as i32
-        } else if i <= 102 {
-            (((i as f32 - 76.0) * 0.6538) + 89.0) as i32
-        } else if i <= MAX_HEURISTIC_INDEX {
-            (((i as f32 - 102.0) / 4.4615) + 106.0) as i32
-        } else {
-            0
-        };
-    }
+    let heuristic_array = get_heuristic_array();
 
     SolverData {
         corners,
