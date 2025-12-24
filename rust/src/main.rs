@@ -79,7 +79,7 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
 
     let mut rng = rand::rng();
 
-    let mut bottom_sides: Vec<Option<Vec<RotatedPiece>>> = vec![None; 529];
+    let mut bottom_sides: Vec<Vec<RotatedPiece>> = vec![vec![]; 529];
     for (key, value) in &solver_data.bottom_side_pieces_rotated {
         let mut pieces: Vec<(RotatedPiece, i32)> = value
             .iter()
@@ -93,11 +93,12 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
             })
             .collect();
         pieces.sort_by(|a, b| b.1.cmp(&a.1));
-        bottom_sides[*key as usize] = Some(pieces.into_iter().map(|(p, _)| p).collect());
+        bottom_sides[*key as usize] = pieces.into_iter().map(|(p, _)| p).collect();
     }
 
     // Get first corner piece
-    if let Some(ref corner_list) = solver_data.corners[0] {
+    let corner_list = &solver_data.corners[0];
+    if !corner_list.is_empty() {
         let idx = rng.random_range(0..corner_list.len());
         board[0] = corner_list[idx];
     }
@@ -136,7 +137,8 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
             board[row * 16 + col].reid = 0;
         }
 
-        let piece_candidates: Option<&Vec<RotatedPiece>> = if row == 0 {
+        let empty_vec = vec![];
+        let candidates: &Vec<RotatedPiece> = if row == 0 {
             if col < 15 {
                 let key = (board[row * 16 + (col - 1)].right as usize) * 23;
                 bottom_sides[key].as_ref()
@@ -155,45 +157,41 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
             if let Some(ref lookup) = solver_data.master_piece_lookup[row * 16 + col] {
                 lookup[key].as_ref()
             } else {
-                None
+                empty_vec.as_ref()
             }
         };
 
         let mut found_piece = false;
 
-        if let Some(candidates) = piece_candidates {
-            let breaks_this_turn =
-                solver_data.break_array[solve_index] - cumulative_breaks[solve_index - 1];
-            let try_index = piece_index_to_try_next[solve_index] as usize;
-            let piece_candidate_length = candidates.len();
+        let breaks_this_turn =
+            solver_data.break_array[solve_index] - cumulative_breaks[solve_index - 1];
+        let try_index = piece_index_to_try_next[solve_index] as usize;
+        let piece_candidate_length = candidates.len();
 
-            for i in try_index..piece_candidate_length {
-                if candidates[i].breaks > breaks_this_turn {
+        for i in try_index..piece_candidate_length {
+            if candidates[i].breaks > breaks_this_turn {
+                break;
+            }
+
+            if !piece_used[candidates[i].reid as usize] {
+                if solve_index <= MAX_HEURISTIC_INDEX
+                    && ((cumulative_heuristic_side_count[solve_index - 1]
+                        + candidates[i].heuristic_side_count)
+                        < solver_data.heuristic_array[solve_index] as u8)
+                {
                     break;
                 }
 
-                if !piece_used[candidates[i].reid as usize] {
-                    if solve_index <= MAX_HEURISTIC_INDEX
-                        && ((cumulative_heuristic_side_count[solve_index - 1]
-                            + candidates[i].heuristic_side_count)
-                            < solver_data.heuristic_array[solve_index] as u8)
-                    {
-                        break;
-                    }
-
-                    found_piece = true;
-                    let piece = candidates[i];
-                    board[row * 16 + col] = piece;
-                    piece_used[piece.reid as usize] = true;
-                    cumulative_breaks[solve_index] =
-                        cumulative_breaks[solve_index - 1] + piece.breaks;
-                    cumulative_heuristic_side_count[solve_index] = cumulative_heuristic_side_count
-                        [solve_index - 1]
-                        + piece.heuristic_side_count;
-                    piece_index_to_try_next[solve_index] = (i + 1) as u8;
-                    solve_index += 1;
-                    break;
-                }
+                found_piece = true;
+                let piece = candidates[i];
+                board[row * 16 + col] = piece;
+                piece_used[piece.reid as usize] = true;
+                cumulative_breaks[solve_index] = cumulative_breaks[solve_index - 1] + piece.breaks;
+                cumulative_heuristic_side_count[solve_index] =
+                    cumulative_heuristic_side_count[solve_index - 1] + piece.heuristic_side_count;
+                piece_index_to_try_next[solve_index] = (i + 1) as u8;
+                solve_index += 1;
+                break;
             }
         }
 

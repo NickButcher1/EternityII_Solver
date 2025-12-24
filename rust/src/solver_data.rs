@@ -9,18 +9,18 @@ use std::collections::HashMap;
 const SIDE_EDGES: &[u8] = &[1, 5, 9, 13, 17];
 
 pub struct SolverData {
-    pub corners: Vec<Option<Vec<RotatedPiece>>>,
-    left_sides: Vec<Option<Vec<RotatedPiece>>>,
-    right_sides_with_breaks: Vec<Option<Vec<RotatedPiece>>>,
-    right_sides_without_breaks: Vec<Option<Vec<RotatedPiece>>>,
-    top_sides: Vec<Option<Vec<RotatedPiece>>>,
-    middles_with_break: Vec<Option<Vec<RotatedPiece>>>,
-    middles_no_break: Vec<Option<Vec<RotatedPiece>>>,
-    south_start: Vec<Option<Vec<RotatedPiece>>>,
-    west_start: Vec<Option<Vec<RotatedPiece>>>,
-    start: Vec<Option<Vec<RotatedPiece>>>,
+    pub corners: Vec<Vec<RotatedPiece>>,
+    left_sides: Vec<Vec<RotatedPiece>>,
+    right_sides_with_breaks: Vec<Vec<RotatedPiece>>,
+    right_sides_without_breaks: Vec<Vec<RotatedPiece>>,
+    top_sides: Vec<Vec<RotatedPiece>>,
+    middles_with_break: Vec<Vec<RotatedPiece>>,
+    middles_no_break: Vec<Vec<RotatedPiece>>,
+    south_start: Vec<Vec<RotatedPiece>>,
+    west_start: Vec<Vec<RotatedPiece>>,
+    start: Vec<Vec<RotatedPiece>>,
     pub bottom_side_pieces_rotated: HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
-    pub master_piece_lookup: Vec<Option<Vec<Option<Vec<RotatedPiece>>>>>,
+    pub master_piece_lookup: Vec<Option<Vec<Vec<RotatedPiece>>>>,
     pub board_search_sequence: [SearchIndex; 256],
     pub break_array: [u8; 256],
     pub heuristic_array: Vec<i32>,
@@ -338,7 +338,7 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
     let board_search_sequence = get_board_order();
     let break_array = get_break_array();
 
-    let mut master_piece_lookup: Vec<Option<Vec<Option<Vec<RotatedPiece>>>>> = vec![None; 256];
+    let mut master_piece_lookup: Vec<Option<Vec<Vec<RotatedPiece>>>> = vec![None; 256];
 
     #[allow(clippy::needless_range_loop)]
     for i in 0..256 {
@@ -440,15 +440,18 @@ fn group_by_left_bottom(
 fn create_sorted_array(
     map: &HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
     rng: &mut impl Rng,
-) -> Vec<Option<Vec<RotatedPiece>>> {
-    let mut result = vec![None; 529];
+) -> Vec<Vec<RotatedPiece>> {
+    let mut result = vec![Vec::new(); 529];
+
     for (key, value) in map {
         let mut pieces: Vec<(RotatedPiece, i32)> = value
             .iter()
             .map(|x| (x.rotated_piece, x.score + rng.random_range(0..99)))
             .collect();
+
         pieces.sort_by(|a, b| b.1.cmp(&a.1));
-        result[*key as usize] = Some(pieces.into_iter().map(|(p, _)| p).collect());
+
+        result[*key as usize] = pieces.into_iter().map(|(p, _)| p).collect();
     }
     result
 }
