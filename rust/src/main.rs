@@ -5,6 +5,7 @@ use rand::Rng;
 use std::env;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use thousands::Separable;
 
 mod board_order;
 mod config;
@@ -23,9 +24,11 @@ fn get_num_cores() -> usize {
 
 fn main() {
     let num_virtual_cores = get_num_cores();
+    let mut loop_count: u64 = 0;
 
     loop {
-        // Solve for Eternity.
+        loop_count += 1;
+
         let solver_data = Arc::new(prepare_pieces_and_heuristics());
 
         println!("Solving with {num_virtual_cores} cores...");
@@ -35,12 +38,13 @@ fn main() {
         // Create thread handles
         let mut handles = vec![];
 
-        for _ in 0..num_virtual_cores {
+        for core in 0..num_virtual_cores {
             let index_counts_clone = Arc::clone(&index_counts);
             let solver_data_clone = Arc::clone(&solver_data);
 
             let handle = std::thread::spawn(move || {
-                for _x in 0..5 {
+                for repeat in 1..6 {
+                    println!("Core {core:02}: start loop {loop_count}, repeat {repeat}");
                     let stopwatch = Instant::now();
                     let solve_indexes = solve_puzzle(&solver_data_clone);
 
@@ -50,7 +54,11 @@ fn main() {
                     }
                     drop(counts);
 
-                    let _elapsed = stopwatch.elapsed();
+                    println!(
+                        "Core {core:02}: finish loop {loop_count}, repeat {repeat}, best depth {} in {} seconds",
+                        0, // TODO solver_result.max_depth,
+                        stopwatch.elapsed().as_secs().separate_with_commas()
+                    );
                 }
             });
 
