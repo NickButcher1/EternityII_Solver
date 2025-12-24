@@ -20,7 +20,7 @@ pub struct SolverData {
     west_start: Vec<Vec<RotatedPiece>>,
     start: Vec<Vec<RotatedPiece>>,
     pub bottom_side_pieces_rotated: HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
-    pub master_piece_lookup: Vec<Option<Vec<Vec<RotatedPiece>>>>,
+    pub master_piece_lookup: Vec<Vec<Vec<RotatedPiece>>>,
     pub board_search_sequence: [SearchIndex; 256],
     pub break_array: [u8; 256],
     pub heuristic_array: Vec<i32>,
@@ -338,7 +338,8 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
     let board_search_sequence = get_board_order();
     let break_array = get_break_array();
 
-    let mut master_piece_lookup: Vec<Option<Vec<Vec<RotatedPiece>>>> = vec![None; 256];
+    let mut master_piece_lookup: Vec<Vec<Vec<RotatedPiece>>> = vec![vec![]; 256];
+    let empty_vec = vec![];
 
     #[allow(clippy::needless_range_loop)]
     for i in 0..256 {
@@ -347,42 +348,42 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
 
         let lookup = if row == 15 {
             if col == 15 || col == 0 {
-                Some(corners.clone())
+                corners.clone()
             } else {
-                Some(top_sides.clone())
+                top_sides.clone()
             }
         } else if row == 0 {
-            None
+            empty_vec.clone()
         } else if col == 15 {
             if i < first_break_index() {
-                Some(right_sides_without_breaks.clone())
+                right_sides_without_breaks.clone()
             } else {
-                Some(right_sides_with_breaks.clone())
+                right_sides_with_breaks.clone()
             }
         } else if col == 0 {
-            Some(left_sides.clone())
+            left_sides.clone()
         } else if row == 7 {
             if col == 7 {
-                Some(start.clone())
+                start.clone()
             } else if col == 6 {
-                Some(west_start.clone())
+                west_start.clone()
             } else if i < first_break_index() {
-                Some(middles_no_break.clone())
+                middles_no_break.clone()
             } else {
-                Some(middles_with_break.clone())
+                middles_with_break.clone()
             }
         } else if row == 6 {
             if col == 7 {
-                Some(south_start.clone())
+                south_start.clone()
             } else if i < first_break_index() {
-                Some(middles_no_break.clone())
+                middles_no_break.clone()
             } else {
-                Some(middles_with_break.clone())
+                middles_with_break.clone()
             }
         } else if i < first_break_index() {
-            Some(middles_no_break.clone())
+            middles_no_break.clone()
         } else {
-            Some(middles_with_break.clone())
+            middles_with_break.clone()
         };
 
         master_piece_lookup[row * 16 + col] = lookup;

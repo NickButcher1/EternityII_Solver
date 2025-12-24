@@ -137,7 +137,6 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
             board[row * 16 + col].reid = 0;
         }
 
-        let empty_vec = vec![];
         let candidates: &Vec<RotatedPiece> = if row == 0 {
             if col < 15 {
                 let key = (board[row * 16 + (col - 1)].right as usize) * 23;
@@ -153,12 +152,7 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
                 board[row * 16 + (col - 1)].right
             };
             let key = (left_side as usize) * 23 + (board[(row - 1) * 16 + col].top as usize);
-
-            if let Some(ref lookup) = solver_data.master_piece_lookup[row * 16 + col] {
-                lookup[key].as_ref()
-            } else {
-                empty_vec.as_ref()
-            }
+            solver_data.master_piece_lookup[row * 16 + col][key].as_ref()
         };
 
         let mut found_piece = false;
