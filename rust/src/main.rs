@@ -1,6 +1,8 @@
 use crate::config::{MAX_HEURISTIC_INDEX, MAX_NODE_COUNT, MIN_SOLVE_INDEX_TO_SAVE};
 use crate::solver_data::{prepare_pieces_and_heuristics, SolverData};
 use crate::structs::RotatedPiece;
+use env_logger::{Builder, Env};
+use log::info;
 use rand::Rng;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -23,6 +25,11 @@ fn get_num_cores() -> usize {
 }
 
 fn main() {
+    let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
+    builder.target(env_logger::Target::Stdout);
+    builder.format_timestamp_millis();
+    builder.init();
+
     let num_virtual_cores = get_num_cores();
     let mut loop_count: u64 = 0;
 
@@ -31,7 +38,7 @@ fn main() {
 
         let solver_data = Arc::new(prepare_pieces_and_heuristics());
 
-        println!("Solving with {num_virtual_cores} cores...");
+        info!("Solving with {num_virtual_cores} cores...");
 
         let index_counts = Arc::new(Mutex::new(vec![0i64; 257]));
 
@@ -44,7 +51,7 @@ fn main() {
 
             let handle = std::thread::spawn(move || {
                 for repeat in 1..6 {
-                    println!("Core {core:02}: start loop {loop_count}, repeat {repeat}");
+                    info!("Core {core:02}: start loop {loop_count}, repeat {repeat}");
                     let stopwatch = Instant::now();
                     let solve_indexes = solve_puzzle(&solver_data_clone);
 
@@ -54,7 +61,7 @@ fn main() {
                     }
                     drop(counts);
 
-                    println!(
+                    info!(
                         "Core {core:02}: finish loop {loop_count}, repeat {repeat}, best depth {} in {} seconds",
                         0, // TODO solver_result.max_depth,
                         stopwatch.elapsed().as_secs().separate_with_commas()
@@ -72,7 +79,7 @@ fn main() {
 
         let final_counts = index_counts.lock().unwrap();
         for i in 0..257 {
-            println!("{} {}", i, final_counts[i]);
+            info!("{} {}", i, final_counts[i]);
         }
     }
 }
