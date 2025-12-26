@@ -1,6 +1,6 @@
 use crate::config::{MAX_HEURISTIC_INDEX, MAX_NODE_COUNT, MIN_SOLVE_INDEX_TO_SAVE};
 use crate::solver_data::{prepare_pieces_and_heuristics, SolverData};
-use crate::structs::RotatedPiece;
+use crate::structs::{RotatedPiece, SolverResult};
 use env_logger::{Builder, Env};
 use log::info;
 use rand::Rng;
@@ -31,6 +31,9 @@ fn main() {
     builder.init();
 
     let num_virtual_cores = get_num_cores();
+    let overall_stopwatch = Instant::now();
+    let max_depth = Arc::new(Mutex::new(0));
+    let mut total_index_count: u64 = 0;
     let mut loop_count: u64 = 0;
 
     loop {
@@ -40,12 +43,13 @@ fn main() {
 
         info!("Solving with {num_virtual_cores} cores...");
 
-        let index_counts = Arc::new(Mutex::new(vec![0i64; 257]));
+        let index_counts = Arc::new(Mutex::new(vec![0u64; 257]));
 
         // Create thread handles
         let mut handles = vec![];
 
         for core in 0..num_virtual_cores {
+            let max_depth = Arc::clone(&max_depth);
             let index_counts_clone = Arc::clone(&index_counts);
             let solver_data_clone = Arc::clone(&solver_data);
 
@@ -53,17 +57,24 @@ fn main() {
                 for repeat in 1..6 {
                     info!("Core {core:02}: start loop {loop_count}, repeat {repeat}");
                     let stopwatch = Instant::now();
-                    let solve_indexes = solve_puzzle(&solver_data_clone);
+                    let solver_result = solve_puzzle(&solver_data_clone);
 
                     let mut counts = index_counts_clone.lock().unwrap();
                     for j in 0..257 {
-                        counts[j] += solve_indexes[j];
+                        counts[j] += solver_result.solve_indexes[j];
                     }
                     drop(counts);
 
+                    {
+                        let mut max_depth = max_depth.lock().unwrap();
+                        if solver_result.max_depth > *max_depth {
+                            *max_depth = solver_result.max_depth;
+                        }
+                    }
+
                     info!(
                         "Core {core:02}: finish loop {loop_count}, repeat {repeat}, best depth {} in {} seconds",
-                        0, // TODO solver_result.max_depth,
+                        solver_result.max_depth,
                         stopwatch.elapsed().as_secs().separate_with_commas()
                     );
                 }
@@ -77,19 +88,37 @@ fn main() {
             handle.join().unwrap();
         }
 
-        let final_counts = index_counts.lock().unwrap();
-        for i in 0..257 {
-            info!("{} {}", i, final_counts[i]);
+        info!("Result"); // No equivalent to C# Parallel.For result.
+
+        // This will only print valid numbers if you let the solver count how far you are.
+        let index_counts_clone = index_counts.clone();
+        let index_counts_locked = index_counts_clone.lock().unwrap();
+        for ii in 0..=256 {
+            let i: usize = ii as usize;
+            if index_counts_locked[i] != 0 {
+                println!("{i} {}", index_counts_locked[i].separate_with_commas());
+            }
+            total_index_count += index_counts_locked[i];
         }
+        let elapsed_time_seconds = overall_stopwatch.elapsed().as_secs();
+        let rate = total_index_count / elapsed_time_seconds;
+        info!(
+            "Total {} nodes in {} seconds, {} per second, max depth {}",
+            total_index_count.separate_with_commas(),
+            elapsed_time_seconds.separate_with_commas(),
+            rate.separate_with_commas(),
+            *max_depth.lock().unwrap()
+        );
     }
 }
 
-fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
+fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
     let mut piece_used = vec![false; 257];
     let mut cumulative_heuristic_side_count = vec![0u8; 256];
     let mut piece_index_to_try_next = vec![0u8; 256];
     let mut cumulative_breaks = vec![0u8; 256];
-    let solve_index_counts = vec![0i64; 257];
+    let mut solve_index_counts: [u64; 257] = [0; 257];
+    solve_index_counts[0] = 0; // Avoid warning when unused.
     let mut board = [RotatedPiece::default(); 256];
 
     let mut rng = rand::rng();
@@ -129,19 +158,28 @@ fn solve_puzzle(solver_data: &SolverData) -> Vec<i64> {
     loop {
         node_count += 1;
 
+        // Uncomment to get this info printed.
+        solve_index_counts[solve_index] += 1;
+
         if solve_index > max_solve_index {
             max_solve_index = solve_index;
             if solve_index >= MIN_SOLVE_INDEX_TO_SAVE {
                 let board_to_save = board;
                 util::save_board(&board_to_save, solve_index as u16);
                 if solve_index >= 256 {
-                    return solve_index_counts;
+                    return SolverResult {
+                        solve_indexes: solve_index_counts,
+                        max_depth: max_solve_index,
+                    };
                 }
             }
         }
 
         if node_count > MAX_NODE_COUNT {
-            return solve_index_counts;
+            return SolverResult {
+                solve_indexes: solve_index_counts,
+                max_depth: max_solve_index,
+            };
         }
 
         let row = solver_data.board_search_sequence[solve_index].row as usize;

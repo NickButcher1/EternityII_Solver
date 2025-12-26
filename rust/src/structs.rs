@@ -40,3 +40,8 @@ pub struct SearchIndex {
     pub row: u8,
     pub column: u8,
 }
+
+pub struct SolverResult {
+    pub solve_indexes: [u64; 257],
+    pub max_depth: usize,
+}
