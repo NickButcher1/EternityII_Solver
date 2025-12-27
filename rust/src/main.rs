@@ -205,7 +205,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
                 board[row * 16 + (col - 1)].right
             };
             let key = (left_side as usize) * 23 + (board[(row - 1) * 16 + col].top as usize);
-            solver_data.master_piece_lookup[row * 16 + col][key].as_ref()
+            solver_data.get_pieces(solver_data.master_piece_lookup[row * 16 + col])[key].as_ref()
         };
 
         let mut found_piece = false;

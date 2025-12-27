@@ -8,7 +8,23 @@ use std::collections::HashMap;
 
 const SIDE_EDGES: &[u8] = &[1, 5, 9, 13, 17];
 
+#[derive(Debug, Clone, Copy)]
+pub enum PieceCategory {
+    None,
+    Corners,
+    LeftSides,
+    RightSidesWithBreaks,
+    RightSidesWithoutBreaks,
+    TopSides,
+    MiddlesWithBreak,
+    MiddlesNoBreak,
+    SouthStart,
+    WestStart,
+    Start,
+}
+
 pub struct SolverData {
+    pub no_pieces: Vec<Vec<RotatedPiece>>,
     pub corners: Vec<Vec<RotatedPiece>>,
     left_sides: Vec<Vec<RotatedPiece>>,
     right_sides_with_breaks: Vec<Vec<RotatedPiece>>,
@@ -20,10 +36,28 @@ pub struct SolverData {
     west_start: Vec<Vec<RotatedPiece>>,
     start: Vec<Vec<RotatedPiece>>,
     pub bottom_side_pieces_rotated: HashMap<u16, Vec<RotatedPieceWithLeftBottom>>,
-    pub master_piece_lookup: Vec<Vec<Vec<RotatedPiece>>>,
+    pub master_piece_lookup: [PieceCategory; 256],
     pub board_search_sequence: [SearchIndex; 256],
     pub break_array: [u8; 256],
     pub heuristic_array: Vec<i32>,
+}
+
+impl SolverData {
+    pub fn get_pieces(&self, category: PieceCategory) -> &[Vec<RotatedPiece>] {
+        match category {
+            PieceCategory::None => &self.no_pieces,
+            PieceCategory::Corners => &self.corners,
+            PieceCategory::LeftSides => &self.left_sides,
+            PieceCategory::RightSidesWithBreaks => &self.right_sides_with_breaks,
+            PieceCategory::RightSidesWithoutBreaks => &self.right_sides_without_breaks,
+            PieceCategory::TopSides => &self.top_sides,
+            PieceCategory::MiddlesWithBreak => &self.middles_with_break,
+            PieceCategory::MiddlesNoBreak => &self.middles_no_break,
+            PieceCategory::SouthStart => &self.south_start,
+            PieceCategory::WestStart => &self.west_start,
+            PieceCategory::Start => &self.start,
+        }
+    }
 }
 
 fn calculate_two_sides(side1: u16, side2: u16) -> u16 {
@@ -345,6 +379,7 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
 
     let mut rng = rand::rng();
 
+    let no_pieces: Vec<Vec<RotatedPiece>> = vec![];
     let corners = create_sorted_array(&corner_pieces_rotated, &mut rng);
     let left_sides = create_sorted_array(&left_side_pieces_rotated, &mut rng);
     let top_sides = create_sorted_array(&top_side_pieces_rotated, &mut rng);
@@ -361,8 +396,7 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
     let board_search_sequence = get_board_order();
     let break_array = get_break_array();
 
-    let mut master_piece_lookup: Vec<Vec<Vec<RotatedPiece>>> = vec![vec![]; 256];
-    let empty_vec = vec![];
+    let mut master_piece_lookup: [PieceCategory; 256] = [PieceCategory::None; 256];
 
     #[allow(clippy::needless_range_loop)]
     for i in 0..256 {
@@ -371,42 +405,42 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
 
         let lookup = if row == 15 {
             if col == 15 || col == 0 {
-                corners.clone()
+                PieceCategory::Corners
             } else {
-                top_sides.clone()
+                PieceCategory::TopSides
             }
         } else if row == 0 {
-            empty_vec.clone()
+            PieceCategory::None
         } else if col == 15 {
             if i < first_break_index() {
-                right_sides_without_breaks.clone()
+                PieceCategory::RightSidesWithoutBreaks
             } else {
-                right_sides_with_breaks.clone()
+                PieceCategory::RightSidesWithBreaks
             }
         } else if col == 0 {
-            left_sides.clone()
+            PieceCategory::LeftSides
         } else if row == 7 {
             if col == 7 {
-                start.clone()
+                PieceCategory::Start
             } else if col == 6 {
-                west_start.clone()
+                PieceCategory::WestStart
             } else if i < first_break_index() {
-                middles_no_break.clone()
+                PieceCategory::MiddlesNoBreak
             } else {
-                middles_with_break.clone()
+                PieceCategory::MiddlesWithBreak
             }
         } else if row == 6 {
             if col == 7 {
-                south_start.clone()
+                PieceCategory::SouthStart
             } else if i < first_break_index() {
-                middles_no_break.clone()
+                PieceCategory::MiddlesNoBreak
             } else {
-                middles_with_break.clone()
+                PieceCategory::MiddlesWithBreak
             }
         } else if i < first_break_index() {
-            middles_no_break.clone()
+            PieceCategory::MiddlesNoBreak
         } else {
-            middles_with_break.clone()
+            PieceCategory::MiddlesWithBreak
         };
 
         master_piece_lookup[row * 16 + col] = lookup;
@@ -415,6 +449,7 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
     let heuristic_array = get_heuristic_array();
 
     SolverData {
+        no_pieces,
         corners,
         left_sides,
         right_sides_with_breaks,
@@ -465,6 +500,7 @@ fn create_sorted_array(
 impl Clone for SolverData {
     fn clone(&self) -> Self {
         SolverData {
+            no_pieces: self.no_pieces.clone(),
             corners: self.corners.clone(),
             left_sides: self.left_sides.clone(),
             right_sides_with_breaks: self.right_sides_with_breaks.clone(),
@@ -476,7 +512,7 @@ impl Clone for SolverData {
             west_start: self.west_start.clone(),
             start: self.start.clone(),
             bottom_side_pieces_rotated: self.bottom_side_pieces_rotated.clone(),
-            master_piece_lookup: self.master_piece_lookup.clone(),
+            master_piece_lookup: self.master_piece_lookup,
             board_search_sequence: self.board_search_sequence,
             break_array: self.break_array,
             heuristic_array: self.heuristic_array.clone(),
