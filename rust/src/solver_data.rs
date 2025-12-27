@@ -496,26 +496,3 @@ fn create_sorted_array(
     }
     result
 }
-
-impl Clone for SolverData {
-    fn clone(&self) -> Self {
-        SolverData {
-            no_pieces: self.no_pieces.clone(),
-            corners: self.corners.clone(),
-            left_sides: self.left_sides.clone(),
-            right_sides_with_breaks: self.right_sides_with_breaks.clone(),
-            right_sides_without_breaks: self.right_sides_without_breaks.clone(),
-            top_sides: self.top_sides.clone(),
-            middles_with_break: self.middles_with_break.clone(),
-            middles_no_break: self.middles_no_break.clone(),
-            south_start: self.south_start.clone(),
-            west_start: self.west_start.clone(),
-            start: self.start.clone(),
-            bottom_side_pieces_rotated: self.bottom_side_pieces_rotated.clone(),
-            master_piece_lookup: self.master_piece_lookup,
-            board_search_sequence: self.board_search_sequence,
-            break_array: self.break_array,
-            heuristic_array: self.heuristic_array.clone(),
-        }
-    }
-}
