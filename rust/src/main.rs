@@ -126,19 +126,28 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
 
     let mut bottom_sides: Vec<Vec<RotatedPiece>> = vec![vec![]; 529];
     for (key, value) in &solver_data.bottom_side_pieces_rotated {
+        // println!("MUTATE: {key}");
+        // for v in value {
+        //     println!("        {v:?}");
+        // }
         let mut pieces: Vec<(RotatedPiece, i32)> = value
             .iter()
             .map(|x| {
                 let score = if x.rotated_piece.heuristic_side_count > 0 {
-                    100
+                    100 * x.rotated_piece.heuristic_side_count as i32
                 } else {
                     0
-                } + rng.random_range(0..99);
+                } + rng.random_range(0..10);
                 (x.rotated_piece, score)
             })
             .collect();
         pieces.sort_by(|a, b| b.1.cmp(&a.1));
-        bottom_sides[*key as usize] = pieces.into_iter().map(|(p, _)| p).collect();
+        let x = pieces.into_iter().map(|(p, _)| p).collect();
+        // println!("TO:");
+        // for v in &x {
+        //     println!("        {v:?}");
+        // }
+        bottom_sides[*key as usize] = x;
     }
 
     let corner_list = &solver_data.corners[0];
