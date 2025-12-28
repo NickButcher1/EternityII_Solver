@@ -185,17 +185,17 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
         let row = solver_data.board_search_sequence[solve_index].row as usize;
         let col = solver_data.board_search_sequence[solve_index].column as usize;
 
-        if board[row * 16 + col].reid > 0 {
+        let b_index = row * 16 + col;
+        if board[b_index].reid > 0 {
             piece_used[board[row * 16 + col].reid as usize] = false;
-            board[row * 16 + col].reid = 0;
+            board[b_index].reid = 0;
         }
 
         let candidates: &Vec<RotatedPiece> = if row == 0 {
+            let key = (board[row * 16 + (col - 1)].right as usize) * 23;
             if col < 15 {
-                let key = (board[row * 16 + (col - 1)].right as usize) * 23;
                 bottom_sides[key].as_ref()
             } else {
-                let key = (board[row * 16 + (col - 1)].right as usize) * 23;
                 solver_data.corners[key].as_ref()
             }
         } else {
@@ -205,7 +205,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
                 board[row * 16 + (col - 1)].right
             };
             let key = (left_side as usize) * 23 + (board[(row - 1) * 16 + col].top as usize);
-            solver_data.get_pieces(solver_data.master_piece_lookup[row * 16 + col])[key].as_ref()
+            solver_data.get_pieces(solver_data.master_piece_lookup[b_index])[key].as_ref()
         };
 
         let mut found_piece = false;
