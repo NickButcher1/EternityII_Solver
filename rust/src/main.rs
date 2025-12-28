@@ -1,3 +1,4 @@
+use crate::bits::{clear_bit, is_clear, set_bit};
 use crate::config::{MAX_HEURISTIC_INDEX, MAX_NODE_COUNT, MIN_SOLVE_INDEX_TO_SAVE};
 use crate::solver_data::{prepare_pieces_and_heuristics, SolverData};
 use crate::structs::{RotatedPiece, SolverResult};
@@ -9,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use thousands::Separable;
 
+mod bits;
 mod board_order;
 mod config;
 mod pieces;
@@ -112,7 +114,7 @@ fn main() {
 }
 
 fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
-    let mut piece_used = [false; 257];
+    let mut piece_used = [0u64; 5];
     let mut cumulative_heuristic_side_count = [0u8; 256];
     let mut piece_index_to_try_next = [0u8; 256];
     let mut cumulative_breaks = [0u8; 256];
@@ -146,7 +148,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
         board[0] = corner_list[idx];
     }
 
-    piece_used[board[0].reid as usize] = true;
+    set_bit(&mut piece_used, board[0].reid as usize);
     cumulative_breaks[0] = 0;
     cumulative_heuristic_side_count[0] = board[0].heuristic_side_count;
 
@@ -186,7 +188,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
         let b_index = row * 16 + col;
 
         if board[b_index].reid > 0 {
-            piece_used[board[b_index].reid as usize] = false;
+            clear_bit(&mut piece_used, board[b_index].reid as usize);
             board[b_index].reid = 0;
         }
 
@@ -214,12 +216,13 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
         let try_index = piece_index_to_try_next[solve_index] as usize;
         let piece_candidate_length = candidates.len();
 
+        #[allow(clippy::needless_range_loop)]
         for i in try_index..piece_candidate_length {
             if candidates[i].breaks > breaks_this_turn {
                 break;
             }
 
-            if !piece_used[candidates[i].reid as usize] {
+            if is_clear(&piece_used, candidates[i].reid as usize) {
                 if solve_index <= MAX_HEURISTIC_INDEX
                     && ((cumulative_heuristic_side_count[solve_index - 1]
                         + candidates[i].heuristic_side_count)
@@ -231,7 +234,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
                 found_piece = true;
                 let piece = candidates[i];
                 board[b_index] = piece;
-                piece_used[piece.reid as usize] = true;
+                set_bit(&mut piece_used, piece.reid as usize);
                 cumulative_breaks[solve_index] = cumulative_breaks[solve_index - 1] + piece.breaks;
                 cumulative_heuristic_side_count[solve_index] =
                     cumulative_heuristic_side_count[solve_index - 1] + piece.heuristic_side_count;
