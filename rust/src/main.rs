@@ -141,16 +141,13 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
         bottom_sides[*key as usize] = pieces.into_iter().map(|(p, _)| p).collect();
     }
 
-    // Get first corner piece.
     let corner_list = &solver_data.corners[0];
-    if !corner_list.is_empty() {
-        let idx = rng.random_range(0..corner_list.len());
-        board[0] = corner_list[idx];
-    }
+    let first_corner_piece = corner_list[rng.random_range(0..solver_data.corners[0].len())];
 
-    set_bit(&mut piece_used, board[0].reid as usize);
+    set_bit(&mut piece_used, first_corner_piece.reid as usize);
+    cumulative_heuristic_side_count[0] = first_corner_piece.heuristic_side_count;
     cumulative_breaks[0] = 0;
-    cumulative_heuristic_side_count[0] = board[0].heuristic_side_count;
+    board[0] = first_corner_piece;
 
     let mut solve_index: usize = 1;
     let mut max_solve_index = solve_index;
