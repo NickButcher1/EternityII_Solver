@@ -184,10 +184,10 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
 
         let row = solver_data.board_search_sequence[solve_index].row as usize;
         let col = solver_data.board_search_sequence[solve_index].column as usize;
-
         let b_index = row * 16 + col;
+
         if board[b_index].reid > 0 {
-            piece_used[board[row * 16 + col].reid as usize] = false;
+            piece_used[board[b_index].reid as usize] = false;
             board[b_index].reid = 0;
         }
 
@@ -231,7 +231,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
 
                 found_piece = true;
                 let piece = candidates[i];
-                board[row * 16 + col] = piece;
+                board[b_index] = piece;
                 piece_used[piece.reid as usize] = true;
                 cumulative_breaks[solve_index] = cumulative_breaks[solve_index - 1] + piece.breaks;
                 cumulative_heuristic_side_count[solve_index] =
