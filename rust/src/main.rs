@@ -165,8 +165,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
         if solve_index > max_solve_index {
             max_solve_index = solve_index;
             if solve_index >= MIN_SOLVE_INDEX_TO_SAVE {
-                let board_to_save = board;
-                util::save_board(&board_to_save, solve_index as u16);
+                util::save_board(&board, solve_index as u16);
                 if solve_index >= 256 {
                     return SolverResult {
                         solve_indexes: solve_index_counts,
