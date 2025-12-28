@@ -192,7 +192,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
         }
 
         let candidates: &Vec<RotatedPiece> = if row == 0 {
-            let key = (board[row * 16 + (col - 1)].right as usize) * 23;
+            let key = (board[col - 1].right as usize) * 23;
             if col < 15 {
                 bottom_sides[key].as_ref()
             } else {
