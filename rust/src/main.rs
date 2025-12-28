@@ -112,11 +112,11 @@ fn main() {
 }
 
 fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
-    let mut piece_used = vec![false; 257];
-    let mut cumulative_heuristic_side_count = vec![0u8; 256];
-    let mut piece_index_to_try_next = vec![0u8; 256];
-    let mut cumulative_breaks = vec![0u8; 256];
-    let mut solve_index_counts: [u64; 257] = [0; 257];
+    let mut piece_used = [false; 257];
+    let mut cumulative_heuristic_side_count = [0u8; 256];
+    let mut piece_index_to_try_next = [0u8; 256];
+    let mut cumulative_breaks = [0u8; 256];
+    let mut solve_index_counts = [0u64; 257];
     solve_index_counts[0] = 0; // Avoid warning when unused.
     let mut board = [RotatedPiece::default(); 256];
 
