@@ -45,7 +45,6 @@ fn main() {
 
         let index_counts = Arc::new(Mutex::new(vec![0u64; 257]));
 
-        // Create thread handles
         let mut handles = vec![];
 
         for core in 0..num_virtual_cores {
@@ -88,7 +87,7 @@ fn main() {
             handle.join().unwrap();
         }
 
-        info!("Result"); // No equivalent to C# Parallel.For result.
+        info!("Result");
 
         // This will only print valid numbers if you let the solver count how far you are.
         let index_counts_clone = index_counts.clone();
@@ -140,7 +139,7 @@ fn solve_puzzle(solver_data: &SolverData) -> SolverResult {
         bottom_sides[*key as usize] = pieces.into_iter().map(|(p, _)| p).collect();
     }
 
-    // Get first corner piece
+    // Get first corner piece.
     let corner_list = &solver_data.corners[0];
     if !corner_list.is_empty() {
         let idx = rng.random_range(0..corner_list.len());

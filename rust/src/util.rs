@@ -14,7 +14,7 @@ pub fn save_board(board: &[RotatedPiece; 256], max_solve_index: u16) {
             if p_rotated.reid > 0 {
                 row_str.push_str(&format!("{:>3}/{} ", p_rotated.reid, p_rotated.rotations));
 
-                // Find original piece to get sides for URL
+                // Find original piece to get sides for URL.
                 if let Some(p) = board_pieces.iter().find(|k| k.reid == p_rotated.reid) {
                     let (t, r, b, l) = match p_rotated.rotations {
                         0 => (p.top, p.right, p.bottom, p.left),

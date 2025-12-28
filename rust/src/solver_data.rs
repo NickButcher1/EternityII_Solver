@@ -68,7 +68,6 @@ fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPieceWith
     let mut score_base: i32 = 0;
     let mut heuristic_side_count: u8 = 0;
 
-    // Calculate heuristic score
     for &side in HEURISTIC_SIDES {
         if piece.left == side {
             score_base += 100;
@@ -92,11 +91,6 @@ fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPieceWith
 
     for left in 0..=22u16 {
         for bottom in 0..=22u16 {
-            // Check all 4 rotations (0, 1, 2, 3)
-            // Logic maps C# blocks to Rust. For brevity, I'll show the pattern
-            // which can be repeated or refactored into a loop.
-
-            // Rotation 0
             check_and_add_rotation(
                 &mut rotated_pieces,
                 piece,
@@ -112,7 +106,6 @@ fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPieceWith
                 allow_breaks,
             );
 
-            // Rotation 1
             check_and_add_rotation(
                 &mut rotated_pieces,
                 piece,
@@ -128,7 +121,6 @@ fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPieceWith
                 allow_breaks,
             );
 
-            // Rotation 2
             check_and_add_rotation(
                 &mut rotated_pieces,
                 piece,
@@ -144,7 +136,6 @@ fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPieceWith
                 allow_breaks,
             );
 
-            // Rotation 3
             check_and_add_rotation(
                 &mut rotated_pieces,
                 piece,
@@ -164,7 +155,6 @@ fn get_rotated_pieces(piece: &Piece, allow_breaks: bool) -> Vec<RotatedPieceWith
     rotated_pieces
 }
 
-/// Helper to reduce code duplication in the rotation loops
 #[allow(clippy::too_many_arguments)]
 fn check_and_add_rotation(
     list: &mut Vec<RotatedPieceWithLeftBottom>,
@@ -279,7 +269,6 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
         .cloned()
         .collect();
 
-    // Corners
     let corner_pieces_rotated = group_by_left_bottom(
         corner_pieces
             .iter()
@@ -287,7 +276,6 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
             .collect(),
     );
 
-    // Sides
     let sides_without_breaks: Vec<_> = side_pieces
         .iter()
         .flat_map(|x| get_rotated_pieces(x, false))
@@ -338,7 +326,6 @@ pub fn prepare_pieces_and_heuristics() -> SolverData {
             .collect(),
     );
 
-    // Middles
     let middle_pieces_rotated_with_breaks = group_by_left_bottom(
         middle_pieces
             .iter()
